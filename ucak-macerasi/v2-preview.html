@@ -100,8 +100,8 @@ var $=function(id){return document.getElementById(id);};
 var W=0,H=0,DPR=1,last=0,time=0,mode='menu',score=0,best=0,lives=3,travel=0,spawnIn=.1,combo=0,shield=0,boost=100,boosting=false,muted=false,audio=null,particles=[],objects=[],sparks=[],drag=null,toastTimer=0,flashAlpha=0;
 var plane={x:0,y:0,tx:0,ty:0,tilt:0};
 var dronesShot=0,missiles=[],ammo=3,ammoRegen=0,roll=0,rollCooldown=0,stage=1,bossWave=0,locked=null,lockTime=0,shake=0,runStars=0;
-var stageGoals=[0,180,450,850,1400,2100,3000,4200,5800,7800];
-var stages=['','YILDIZ AVCISI','GÖKYÜZÜ KAŞİFİ','DRON AVCISI','FIRTINA USTASI','ALTIN KANATLAR','AS PİLOT','EFSANE PİLOT','GÖKLERİN HAKİMİ','SINIRSIZ GÖKYÜZÜ'];
+var stageGoals=[0,0,180,450,850,1400,2100,3000,4200,5800,7800,10500];
+var stages=['','YILDIZ AVCISI','GÖKYÜZÜ KAŞİFİ','DRON AVCISI','FIRTINA USTASI','ALTIN KANATLAR','AS PİLOT','EFSANE PİLOT','GÖKLERİN HAKİMİ','SINIRSIZ GÖKYÜZÜ','UZAYIN SINIRI'];
 var colors={gold:'#ffcf64',berry:'#ff8496'};
 try{best=+(localStorage.getItem('bulutpilotlari_best_v1')||0);}catch(e){}
 $('best').textContent=best;$('panelBest').textContent=best;
