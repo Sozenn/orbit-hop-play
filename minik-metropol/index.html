@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#16222e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="Minik Metropol - telefonda oynanan 3D şehir kurma oyunu">
+<title>Minik Metropol</title>
+<link rel="stylesheet" href="style.css?v=3.0.0">
+</head>
+<body>
+<div id="top">
+  <div class="row">
+    <div class="pill" id="city"><b id="cname">Köy</b><small id="cday">Gün 1 · 08:00</small></div>
+    <div class="sp"></div>
+    <button class="ib" id="bPause" aria-label="Duraklat">⏸</button>
+    <button class="ib" id="bSpeed" aria-label="Hız">1x</button>
+    <button class="ib" id="bStats" aria-label="İstatistik">📊</button>
+    <button class="ib" id="bMenu" aria-label="Menü">☰</button>
+  </div>
+  <div class="row">
+    <div class="pill" id="stats">
+      <span>💰 <b id="sMoney">0</b> <small id="sNet"></small></span>
+      <span>👥 <b id="sPop">0</b></span>
+      <span>😊 <b id="sHap">-</b></span>
+      <span>⚡ <b id="sPow">0/0</b></span>
+      <span>💧 <b id="sWat">0/0</b></span>
+    </div>
+  </div>
+  <div class="row" style="align-items:flex-start">
+    <div class="pill" id="rci" title="Talep">
+      <div class="rcw"><div class="bar"><i id="dR" style="background:#6ee36e"></i></div><div class="bl">K</div></div>
+      <div class="rcw"><div class="bar"><i id="dC" style="background:#5ab4ff"></i></div><div class="bl">T</div></div>
+      <div class="rcw"><div class="bar"><i id="dO" style="background:#b48af0"></i></div><div class="bl">O</div></div>
+      <div class="rcw"><div class="bar"><i id="dI" style="background:#ffc04d"></i></div><div class="bl">S</div></div>
+    </div>
+    <div class="pill" id="hint" style="display:none"></div>
+  </div>
+</div>
+
+<div id="rot">
+  <button class="ib" id="bRotL" aria-label="Sola döndür">⟲</button>
+  <button class="ib" id="bRotR" aria-label="Sağa döndür">⟳</button>
+</div>
+
+<div id="bottom">
+  <div id="subhint"></div>
+  <div id="sub"></div>
+  <div id="cats"></div>
+</div>
+<div class="pill" id="info"><button class="x" id="infoX">✕</button><div id="infoBody"></div></div>
+<div class="pill" id="statsPanel"><button class="x" id="statsX">✕</button><div id="statsBody"></div></div>
+<div class="pill" id="toast"></div>
+<div id="costTag"></div>
+<div id="floaters"></div>
+
+<div id="menu">
+  <div class="card">
+    <div class="logo">🏙️</div>
+    <h1>Minik Metropol</h1>
+    <div class="sub">Otoban kenarındaki boş araziyi bir metropole dönüştür</div>
+    <div id="loading">Yükleniyor…</div>
+    <button class="btn" id="mCont" style="display:none">Devam et</button>
+    <button class="btn" id="mNew" style="display:none">Yeni şehir</button>
+    <button class="btn sec" id="mHelp">Nasıl oynanır?</button>
+    <div class="opts">
+      <button class="chip" id="oSound">🔊 Ses: Açık</button>
+      <button class="chip" id="oGfx">✨ Grafik: Yüksek</button>
+    </div>
+    <div id="help">
+      <ul>
+        <li><b>🛣️ Yol:</b> parmağını sürükleyerek her açıda yol çiz. Yollar kesişince kavşak olur. Var olan bir yola dokunursan seçtiğin tipe dönüşür (toprak → cadde → bulvar → otoban).</li>
+        <li>Şehrin <b>otobana bağlı</b> olmalı. Bağlı olmayan yere kimse taşınmaz.</li>
+        <li><b>🏘️ Bölge:</b> yolların kenarını konut, ticaret, ofis ya da sanayi olarak boya. Binalar kendiliğinden yapılır.</li>
+        <li><b>⚡ Elektrik · 💧 Su</b> olmadan binalar çalışmaz.</li>
+        <li><b>🏥 Hizmetler:</b> sağlık, okullar (ilkokul → üniversite), polis, itfaiye. Evler bunlarla büyüyüp apartmana ve gökdelene dönüşür.</li>
+        <li><b>🗺️ Arazi:</b> şehir büyüdükçe yeni arazi satın al.</li>
+        <li><b>🧨 Yık:</b> yola ya da binaya dokun. Bir şeye <b>✋ Gez</b> modunda dokunursan bilgisi ve Yık düğmesi çıkar.</li>
+        <li>Tek parmak: işlem · İki parmak: kaydır, yakınlaştır, döndür.</li>
+      </ul>
+    </div>
+    <div class="ver">v3.0</div>
+  </div>
+</div>
+<script type="module" src="js/main.js?v=3.0.0"></script>
+</body>
+</html>
