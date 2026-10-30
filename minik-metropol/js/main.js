@@ -36,7 +36,7 @@ function sfx(k) {
 
 // ---------- oyun durumu ----------
 let isPreview = true, running = false, paused = false, speed = 1;
-let cat = 'pan', item = null, brush = 1.6;
+let cat = 'pan', item = null, brush = 1.6, curveMode = false, lastRoad = 'street';
 const lastItem = { road: 'street', zone: 'r1', util: 'wind', svc: 'clinic', park: 'park' };
 
 // ---------- HUD ----------
@@ -87,23 +87,26 @@ function buildCats() {
 }
 function itemsFor(c) {
   const s = S(), ms = s ? s.ms : 0;
-  if (c === 'road') return ROAD_ORDER.map(k => ({ id: k, i: ROADS[k].i, n: ROADS[k].n, pr: ROADS[k].cost + '/m', lock: ROADS[k].ms > ms ? ROADS[k].ms : 0, sw: k === 'dirt' ? '#9b7b55' : k === 'highway' ? '#9a9a96' : '#3e4147' }));
+  if (c === 'road') return [...ROAD_ORDER.map(k => ({ id: k, i: ROADS[k].i, n: ROADS[k].n, pr: ROADS[k].cost + '/m', lock: ROADS[k].ms > ms ? ROADS[k].ms : 0, sw: k === 'dirt' ? '#9b7b55' : k === 'highway' ? '#9a9a96' : '#3e4147' })),
+    { id: 'curve', i: '〰️', n: 'Eğri yol', pr: curveMode ? 'AÇIK' : 'kapalı', on: curveMode }, { id: 'round', i: '⭕', n: 'Döner kavşak', pr: 'kavşağa dokun' }];
   if (c === 'zone') return [...ZONE_ORDER.map(k => ({ id: k, i: ZONES[k].i, n: ZONES[k].n + ' ' + ZONES[k].sub, lock: ZONES[k].ms > ms ? ZONES[k].ms : 0, sw: ZONES[k].c })), { id: 'x', i: '🚫', n: 'Bölgeyi sil', sw: '#fff' }, { id: 'brush', i: brush < 1 ? '•' : brush < 2 ? '●' : '⬤', n: 'Fırça ' + (brush < 1 ? 'küçük' : brush < 2 ? 'orta' : 'büyük') }];
   const cats = { util: ['wind', 'coal', 'solar', 'wtower', 'pump'], svc: ['clinic', 'hosp', 'ilk', 'orta', 'lise', 'uni', 'police', 'fire'], park: ['park', 'play', 'plaza', 'bigpark', 'stadium'] }[c];
   if (cats) return cats.map(k => ({ id: k, i: SVC[k].i, n: SVC[k].n, pr: '💰' + fmt(SVC[k].cost), lock: SVC[k].ms > ms ? SVC[k].ms : 0 }));
   return [];
 }
-const HINTS = { pan: 'Kaydırmak için sürükle · Bir şeye dokun: bilgi ve yıkma', road: 'Sürükle: yol çiz (kesişince kavşak olur) · Var olan yola dokun: seçili tipe dönüştür', zone: 'Yolun kenarındaki kareleri parmağınla boya', util: 'Bir yolun yanına sürükleyip bırak', svc: 'Bir yolun yanına sürükleyip bırak · Halka etki alanını gösterir', park: 'Bir yolun yanına sürükleyip bırak', land: 'Yeşil araziye dokunup satın al', bull: 'Yıkmak istediğin yola ya da binaya dokun' };
+const HINTS = { pan: 'Kaydırmak için sürükle · Bir şeye dokun: bilgi ve yıkma', road: 'Sürükle: yol çiz · Yollar kesişince kavşak olur · Var olan yola dokun: seçili tipe dönüştür', zone: 'Yolun kenarındaki kareleri parmağınla boya', util: 'Bir yolun yanına sürükleyip bırak', svc: 'Bir yolun yanına sürükleyip bırak · Halka etki alanını gösterir', park: 'Bir yolun yanına sürükleyip bırak', land: 'Yeşil araziye dokunup satın al', bull: 'Yıkmak istediğin yola ya da binaya dokun' };
 function buildSub() {
   const box = $('sub'); box.innerHTML = '';
   $('subhint').textContent = HINTS[cat] || '';
   for (const it of itemsFor(cat)) {
     const b = document.createElement('button');
-    b.className = 'tb' + (item === it.id ? ' sel' : '') + (it.lock ? ' lock' : '');
+    b.className = 'tb' + (item === it.id || it.on ? ' sel' : '') + (it.lock ? ' lock' : '');
     b.innerHTML = `${it.sw ? `<span class="sw" style="background:${it.sw}"></span>` : ''}<span class="ic">${it.lock ? '🔒' : it.i}</span><span class="nm">${it.n}</span>${it.lock ? `<span class="pr">${MILES[it.lock].title}</span>` : it.pr ? `<span class="pr">${it.pr}</span>` : ''}`;
     b.onclick = () => {
       initAudio(); sfx('tap');
       if (it.id === 'brush') { brush = brush < 1 ? 1.6 : brush < 2 ? 2.6 : .7; buildSub(); return; }
+      if (it.id === 'curve') { curveMode = !curveMode; if (item === 'round') item = lastRoad; toast(curveMode ? '〰️ Eğri yol açık: bir yolun ucundan başlayıp sürükle, yol kıvrılarak devam eder' : 'Düz yol modu'); buildSub(); return; }
+      if (cat === 'road' && it.id !== 'round') lastRoad = it.id;
       if (it.lock) { toast(`🔒 ${it.n}: şehrin <b>${MILES[it.lock].title}</b> olunca açılır`); return; }
       item = it.id; lastItem[cat] = it.id; buildSub();
     };
@@ -203,6 +206,7 @@ $('statsX').onclick = () => { $('statsPanel').style.display = 'none'; };
 // ---------- değişiklik sonrası ----------
 function afterChange() {
   const d = R.dirty;
+  if (!isPreview) for (const e of R.events) if (e.t === 'new' || e.t === 'up') G.startConstruction(e.id);
   if (d.roads) G.buildRoads();
   if (d.blds) G.syncBuildings();
   if (d.trees) G.buildTrees();
@@ -264,7 +268,8 @@ cv.addEventListener('pointermove', e => {
   else if (GS.mode === 'act') {
     if (far) GS.moved = true;
     const g = groundAt(e.clientX, e.clientY); if (!g) return;
-    if (cat === 'road' && GS.moved && GS.start) { GS.plan = planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${GS.plan.bridge ? ' · 🌉 köprü' : ''}` : GS.plan.msg, GS.plan.ok); }
+    if (cat === 'road' && item === 'round') { const n = Wd.roundaboutAt(g[0], g[1]); G.setGhostNode(n, !!n); }
+    else if (cat === 'road' && GS.moved && GS.start) { GS.plan = curveMode ? Wd.planCurve(GS.start[0], GS.start[1], g[0], g[1], item) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${GS.plan.bridge ? ' · 🌉 köprü' : ''}` : GS.plan.msg, GS.plan.ok); }
     else if (cat === 'zone') doPaint(g);
     else if (cat === 'bull') doBull(g, false);
     else if (cat === 'util' || cat === 'svc' || cat === 'park') { GS.plan = planSvc(g[0], g[1], item); G.setGhostBld(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
@@ -282,9 +287,14 @@ function endPtr(e) {
       if (cat === 'land') { const t = tileOf(g[0], g[1]); if (t >= 0) { const r = buyTile(t); if (r === true) { sfx('win'); toast('🗺️ Yeni arazi alındı!'); afterChange(); G.buildTiles(true, tileBuyable, tileCost()); } else if (r !== 'owned') { toast(r); sfx('err'); } } }
       else { const o = pickAt(g[0], g[1]); if (o) showInfo(o); else hideInfo(); }
     } else if (GS.mode === 'act') {
-      if (cat === 'road') {
-        if (GS.moved && GS.plan) { if (GS.plan.ok) { commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
-        else if (!GS.moved && g) { const ns = nearestSeg(g[0], g[1], .3); if (ns && ns.d <= ns.hw + .3) { const s = R.segs.get(ns.id); if (s.t === item) showInfo({ kind: 'seg', id: ns.id }); else { const r = upgradeSeg(ns.id, item); if (r === true) { sfx('road'); toast(`${ROADS[item].i} Yol ${ROADS[item].n} oldu`); afterChange(); } else { toast(r); sfx('err'); } } } }
+      if (cat === 'road' && item === 'round') {
+        const n = g && Wd.roundaboutAt(g[0], g[1]);
+        if (!n) { toast('⭕ Döner kavşak için 3 ya da daha fazla yolun buluştuğu bir kavşağa dokun'); sfx('err'); }
+        else { const r = Wd.makeRoundabout(n.id); if (r === true) { sfx('road'); toast('⭕ Döner kavşak yapıldı'); afterChange(); } else { toast(r); sfx('err'); } }
+        G.clearGhost();
+      } else if (cat === 'road') {
+        if (GS.moved && GS.plan) { if (GS.plan.ok) { if (GS.plan.curve) Wd.commitCurve(GS.plan); else commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
+        else if (!GS.moved && g && item !== 'round') { const ns = nearestSeg(g[0], g[1], .3); if (ns && ns.d <= ns.hw + .3) { const s = R.segs.get(ns.id); if (s.t === item) showInfo({ kind: 'seg', id: ns.id }); else { const r = upgradeSeg(ns.id, item); if (r === true) { sfx('road'); toast(`${ROADS[item].i} Yol ${ROADS[item].n} oldu`); afterChange(); } else { toast(r); sfx('err'); } } } }
         G.clearGhost();
       } else if (cat === 'util' || cat === 'svc' || cat === 'park') {
         if (GS.plan) { if (GS.plan.ok) { const p = GS.plan; commitSvc(p); sfx('build'); floatAt(p.x, p.z, '-' + fmt(p.cost)); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
@@ -367,6 +377,7 @@ function frame(tm) {
   if (isPreview && $('menu').style.display !== 'none') { cam.yawT += dt * .05; cam.yaw = cam.yawT; }
   if (Math.abs(cam.yawT - cam.yaw) > 1e-3) cam.yaw += (cam.yawT - cam.yaw) * Math.min(1, dt * 8);
   updCam();
+  if (S() && G.updConstruction(simDt, tm)) G.syncBuildings();
   if (S()) { G.updLight(S().tk + (running && !paused ? acc / 1000 : 0), OPT.gfx === 'high'); G.updFx(dt, simDt, tm); G.bobIcons(tm); }
   G.render();
   requestAnimationFrame(frame);

@@ -147,6 +147,7 @@ export function initMaterials() {
   nightMats.push(MAT.cross.m);
   std('flag', { map: canvasTex(96, 64, g => { g.fillStyle = '#e30a17'; g.fillRect(0, 0, 96, 64); g.fillStyle = '#fff'; g.beginPath(); g.arc(36, 32, 16, 0, 7); g.fill(); g.fillStyle = '#e30a17'; g.beginPath(); g.arc(40, 32, 13, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); for (let k = 0; k < 10; k++) { const a = k * Math.PI / 5, r = k % 2 ? 3.4 : 8; g.lineTo(57 + Math.cos(a) * r, 32 + Math.sin(a) * r); } g.fill(); }, { repeat: false }), side: THREE.DoubleSide }, 1, 1);
   for (const [k, c] of [['sign_r', '#d63031'], ['sign_b', '#0984e3'], ['sign_g', '#00b894'], ['sign_y', '#fdcb6e'], ['sign_p', '#6c5ce7']]) { const m = col(k, c, { emissive: c, emissiveIntensity: 0 }); nightMats.push(m); }
+  col('tl_red', '#ff3b30', { emissive: '#ff3b30', emissiveIntensity: .9 }); col('tl_green', '#34c759', { emissive: '#34c759', emissiveIntensity: .9 });
   col('lamp', '#fff3c4', { emissive: '#ffd27a', emissiveIntensity: 0 }); nightMats.push(MAT.lamp.m);
 }
 
@@ -168,7 +169,7 @@ export function roadTexture(type) {
     g.save(); g.beginPath(); g.rect(sw, 0, S2 - 2 * sw, S2); g.clip(); noise(g, S2, S2, 3000, ['#46494f', '#36393e', '#4c4f55', '#303338'], 2); g.restore();
     const C = S2 / 2;
     if (type === 'street') {
-      g.fillStyle = '#f0c93a'; for (let y = 8; y < S2; y += 64) g.fillRect(C - 3, y, 6, 36);
+      g.fillStyle = '#f2f2ee'; for (let y = 8; y < S2; y += 64) g.fillRect(C - 3, y, 6, 34); g.fillRect(sw + 8, 0, 3, S2); g.fillRect(S2 - sw - 11, 0, 3, S2);
     } else if (type === 'avenue') {
       g.fillStyle = '#6f9e4a'; g.fillRect(C - 9, 0, 18, S2); g.fillStyle = '#d9d5c9'; g.fillRect(C - 11, 0, 2, S2); g.fillRect(C + 9, 0, 2, S2);
       g.fillStyle = '#f2f2ee'; const lw = (S2 - 2 * sw - 22) / 4;

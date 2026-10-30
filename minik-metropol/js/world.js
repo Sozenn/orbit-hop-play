@@ -115,6 +115,7 @@ function segIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
   return { t, u, x: ax + rx * t, z: az + rz * t };
 }
 const HB = 6;
+const MINANG = 35 * Math.PI / 180;
 function hkey(x, z, b) { return (Math.floor(x / b) + 1000) * 4096 + (Math.floor(z / b) + 1000); }
 function buildSegHash() {
   R.segHash.clear();
@@ -161,14 +162,15 @@ function splitSeg(id, x, z) {
 }
 
 function resolvePoint(x, z, type) {
-  const n = nodeNear(x, z, 1.1);
-  if (n) return { x: n.x, z: n.z, node: n.id };
   const hw = ROADS[type].w / 2;
-  const ns = nearestSeg(x, z, .5 + hw * .5);
+  let bn = null, bd = Infinity;
+  for (const n of R.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < Math.max(1.2, hw + nodeHW(n.id) + .3) && d < bd) { bd = d; bn = n; } }
+  if (bn) return { x: bn.x, z: bn.z, node: bn.id };
+  const ns = nearestSeg(x, z, hw + .5);
   if (ns) {
-    const s = R.segs.get(ns.id);
-    if (ns.t < 1.2) { const A = R.nodes.get(s.a); return { x: A.x, z: A.z, node: A.id }; }
-    if (ns.t > ns.g.L - 1.2) { const B = R.nodes.get(s.b); return { x: B.x, z: B.z, node: B.id }; }
+    const s = R.segs.get(ns.id), near = hw + ns.hw + 1;
+    if (ns.t < near) { const A = R.nodes.get(s.a); return { x: A.x, z: A.z, node: A.id }; }
+    if (ns.t > ns.g.L - near) { const B = R.nodes.get(s.b); return { x: B.x, z: B.z, node: B.id }; }
     return { x: ns.px, z: ns.pz, split: ns.id };
   }
   return { x, z };
@@ -199,13 +201,13 @@ export function planRoad(x0, z0, x1, z1, type) {
     for (const id of adjOf(nodeId)) {
       const s = R.segs.get(id), o = R.nodes.get(s.a === nodeId ? s.b : s.a), N = R.nodes.get(nodeId);
       const ex = o.x - N.x, ez = o.z - N.z, el = Math.hypot(ex, ez);
-      if ((ex * vx + ez * vz) / el > Math.cos(22 * Math.PI / 180)) return false;
+      if ((ex * vx + ez * vz) / el > Math.cos(MINANG)) return false;
     }
     return true;
   };
   if (A.node && !angOk(A.node, ux, uz)) { plan.msg = 'Açı çok dar'; return plan; }
   if (B.node && !angOk(B.node, -ux, -uz)) { plan.msg = 'Açı çok dar'; return plan; }
-  const segAng = (sid, vx, vz) => { const g = segGeo(sid); return Math.abs(g.ux * vx + g.uz * vz) < Math.cos(25 * Math.PI / 180); };
+  const segAng = (sid, vx, vz) => { const g = segGeo(sid); return Math.abs(g.ux * vx + g.uz * vz) < Math.cos(MINANG); };
   if (A.split && !segAng(A.split, ux, uz)) { plan.msg = 'Açı çok dar'; return plan; }
   if (B.split && !segAng(B.split, ux, uz)) { plan.msg = 'Açı çok dar'; return plan; }
   // kesişmeler
@@ -218,9 +220,9 @@ export function planRoad(x0, z0, x1, z1, type) {
     const I = segIntersect(A.x, A.z, B.x, B.z, g.ax, g.az, g.bx, g.bz);
     if (!I) continue;
     if (!segAng(s.id, ux, uz)) { plan.msg = 'Yollar çok dar açıyla kesişiyor'; return plan; }
-    const ul = I.u * g.L;
-    if (ul < 1.2) cross.push({ t: I.t, x: g.ax, z: g.az, node: s.a });
-    else if (ul > g.L - 1.2) cross.push({ t: I.t, x: g.bx, z: g.bz, node: s.b });
+    const ul = I.u * g.L, nr = rt.w / 2 + g.hw + 1;
+    if (ul < nr) cross.push({ t: I.t, x: g.ax, z: g.az, node: s.a });
+    else if (ul > g.L - nr) cross.push({ t: I.t, x: g.bx, z: g.bz, node: s.b });
     else cross.push({ t: I.t, x: I.x, z: I.z, split: s.id });
   }
   // A veya B bir düğümse, o düğüme bağlı yolların karşı ucundan geçen kesişmeler zaten dışlandı
@@ -229,10 +231,10 @@ export function planRoad(x0, z0, x1, z1, type) {
   for (const c of cross) {
     const prev = pts[pts.length - 1];
     if (c.node && prev.node === c.node) continue;
-    if (Math.hypot(c.x - prev.x, c.z - prev.z) < 1.5) { plan.msg = 'Kavşaklar birbirine çok yakın'; return plan; }
+    if (Math.hypot(c.x - prev.x, c.z - prev.z) < (prev === A && !A.node && !A.split ? 1.6 : rt.w + 1.6)) { plan.msg = 'Kavşaklar birbirine çok yakın'; return plan; }
     pts.push(c);
   }
-  if (Math.hypot(B.x - pts[pts.length - 1].x, B.z - pts[pts.length - 1].z) < 1.5) { plan.msg = 'Kavşaklar birbirine çok yakın'; return plan; }
+  if (pts.length > 1 && Math.hypot(B.x - pts[pts.length - 1].x, B.z - pts[pts.length - 1].z) < rt.w + 1.6) { plan.msg = 'Kavşaklar birbirine çok yakın'; return plan; }
   pts.push(B);
   // örnekleme: su, kilitli arazi, üst üste binme
   let bridge = 0;
@@ -240,10 +242,11 @@ export function planRoad(x0, z0, x1, z1, type) {
     const x = A.x + ux * s, z = A.z + uz * s;
     if (!unlocked(x, z)) { plan.msg = 'Bu arazi henüz senin değil (🗺️ Arazi)'; return plan; }
     if (isWater(x, z)) bridge += .5;
-    let nearPt = false; for (const p of pts) if (Math.hypot(p.x - x, p.z - z) < 2.2) { nearPt = true; break; }
+    let nearPt = false;
+    for (const p of pts) { const ow = p.node ? nodeHW(p.node) : p.split ? segGeo(p.split).hw : 0; if (Math.hypot(p.x - x, p.z - z) < (rt.w / 2 + ow + .25) / Math.sin(MINANG) + .2) { nearPt = true; break; } }
     if (nearPt) continue;
-    const ns = nearestSeg(x, z, 0);
-    if (ns && ns.d < (ns.hw + rt.w / 2) * .8) { plan.msg = 'Yol başka bir yolun üstüne biniyor'; return plan; }
+    const ns = nearestSeg(x, z, rt.w / 2 + .2);
+    if (ns && ns.d < ns.hw + rt.w / 2 + .15) { plan.msg = 'Başka bir yola çok yakın'; return plan; }
     // hizmet binası
     const oi = gi(x, z); if (oi >= 0 && R.occ[oi] === 2) { plan.msg = 'Önünde bir bina var'; return plan; }
   }
@@ -266,6 +269,89 @@ export function commitRoad(plan) {
   rebuildAll();
   return true;
 }
+// Eğri yol: var olan bir yolun ucundan teğet devam eder
+export function planCurve(x0, z0, x1, z1, type) {
+  let A = resolvePoint(x0, z0, type), B = resolvePoint(x1, z1, type), rev = false;
+  const tan = P => { if (!P.node || degree(P.node) !== 1) return null; const s = R.segs.get(adjOf(P.node)[0]), O = R.nodes.get(s.a === P.node ? s.b : s.a), N = R.nodes.get(P.node); const dx = N.x - O.x, dz = N.z - O.z, l = Math.hypot(dx, dz); return [dx / l, dz / l]; };
+  let t = tan(A);
+  if (!t) { t = tan(B); if (t) { [A, B] = [B, A]; rev = true; } }
+  if (!t) { const p = planRoad(x0, z0, x1, z1, type); p.noTangent = true; return p; }
+  const dx = B.x - A.x, dz = B.z - A.z, D = Math.hypot(dx, dz);
+  const plan = { ok: false, msg: '', cost: 0, curve: true, type, pieces: [], pts: [], A, B, len: 0, bridge: 0 };
+  if (D < 2.5) { plan.msg = 'Yol çok kısa'; return plan; }
+  const cs = (t[0] * dx + t[1] * dz) / D;
+  if (cs < Math.cos(100 * Math.PI / 180)) { plan.msg = 'Eğri çok keskin'; return plan; }
+  if (cs > .995) { const p = planRoad(A.x, A.z, B.x, B.z, type); return p; }
+  const k = (D / 2) / Math.max(cs, .35), C = [A.x + t[0] * k, A.z + t[1] * k];
+  // yay uzunluğu ve parçalar
+  let alen = 0, prev = [A.x, A.z]; const smp = [];
+  for (let i = 1; i <= 40; i++) { const u = i / 40, v = 1 - u, P = [v * v * A.x + 2 * v * u * C[0] + u * u * B.x, v * v * A.z + 2 * v * u * C[1] + u * u * B.z]; alen += Math.hypot(P[0] - prev[0], P[1] - prev[1]); prev = P; }
+  const n = Math.max(2, Math.min(16, Math.ceil(alen / 2.8)));
+  const pts = [];
+  for (let i = 0; i <= n; i++) { const u = i / n, v = 1 - u; pts.push([v * v * A.x + 2 * v * u * C[0] + u * u * B.x, v * v * A.z + 2 * v * u * C[1] + u * u * B.z]); }
+  if (rev) pts.reverse();
+  plan.pts = pts.map(p => ({ x: p[0], z: p[1] })); plan.len = alen;
+  // her parçayı ayrı ayrı denetle
+  for (let i = 0; i < n; i++) {
+    const p = planRoad(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], type);
+    if (!p.ok && p.msg !== 'Yeterli paran yok' && !(i > 0 && p.msg === 'Açı çok dar')) { plan.msg = p.msg; plan.pieces.push(p); return plan; }
+    plan.pieces.push(p); plan.cost += p.cost; plan.bridge += p.bridge;
+  }
+  if (S.money < plan.cost) { plan.msg = 'Yeterli paran yok'; return plan; }
+  plan.ok = true; return plan;
+}
+export function commitCurve(plan) {
+  if (!plan.ok) return false;
+  const P = plan.pts; let spent = 0;
+  for (let i = 0; i < P.length - 1; i++) {
+    const p = planRoad(P[i].x, P[i].z, P[i + 1].x, P[i + 1].z, plan.type);
+    if (!p.ok) break;
+    commitRoad(p); spent += p.cost;
+  }
+  return spent > 0;
+}
+// Döner kavşak
+export function roundaboutAt(x, z) {
+  let best = null, bd = 2.5;
+  for (const n of R.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd && degree(n.id) >= 3) { bd = d; best = n; } }
+  return best;
+}
+export function makeRoundabout(nodeId) {
+  const N = R.nodes.get(nodeId); if (!N) return 'Bir kavşağa dokun';
+  const arms = adjOf(nodeId).map(id => R.segs.get(id));
+  if (arms.length < 3) return 'Döner kavşak için 3 ya da daha fazla yollu bir kavşağa dokun';
+  if (arms.some(s => s.t === 'highway')) return 'Otoban kavşağı döner kavşak olamaz';
+  const maxHW = Math.max(...arms.map(s => ROADS[s.t].w / 2));
+  const ringT = arms.some(s => s.t === 'avenue') ? 'avenue' : 'street';
+  const r = 2.2 + maxHW * 1.3;
+  for (const s of arms) if (segGeo(s.id).L < r + 2.5) return 'Kavşağa bağlı yollar döner kavşak için çok kısa';
+  const cost = Math.ceil(2 * Math.PI * r * ROADS[ringT].cost * 1.2);
+  if (S.money < cost) return 'Yeterli paran yok (' + cost + ')';
+  // her kolu r mesafesinde böl
+  const outer = [];
+  for (const s0 of arms) {
+    const s = R.segs.get(s0.id), g = segGeo(s.id), fromA = s.a === nodeId;
+    const t = fromA ? r : g.L - r;
+    const m = splitSeg(s.id, g.ax + g.ux * t, g.az + g.uz * t);
+    outer.push({ m, t: s0.t });
+  }
+  // merkezdeki parçaları sil
+  for (const id of [...adjOf(nodeId)]) { R.segs.delete(id); R.sg.delete(id); }
+  R.nodes.delete(nodeId); buildAdj();
+  const ring = outer.map(o => { const M = R.nodes.get(o.m); return { id: o.m, ang: Math.atan2(M.z - N.z, M.x - N.x) }; }).sort((a, b) => a.ang - b.ang);
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i], b = ring[(i + 1) % ring.length];
+    let da = b.ang - a.ang; if (da <= 0) da += Math.PI * 2;
+    const k = Math.max(2, Math.ceil(da * r / 1.7));
+    let prev = a.id;
+    for (let j = 1; j < k; j++) { const an = a.ang + da * j / k, id = addNode(N.x + Math.cos(an) * r, N.z + Math.sin(an) * r); addSeg(prev, id, ringT); prev = id; }
+    addSeg(prev, b.id, ringT);
+  }
+  S.deco = (S.deco || []).concat([{ x: N.x, z: N.z, r: r - ROADS[ringT].w / 2 - .05 }]);
+  S.money -= cost;
+  rebuildAll(); return true;
+}
+
 export function upgradeCost(id, type) { const g = segGeo(id), s = R.segs.get(id); return Math.max(0, Math.ceil(g.L * (ROADS[type].cost - ROADS[s.t].cost * .5))); }
 export function upgradeSeg(id, type) {
   const s = R.segs.get(id); if (!s || s.t === type) return 'same';
@@ -298,6 +384,82 @@ export function deleteSeg(id) {
 }
 function segLenRaw(s) { const A = R.nodes.get(s.a), B = R.nodes.get(s.b); return A && B ? Math.hypot(B.x - A.x, B.z - A.z) : 0; }
 
+// ---------------- kavşak geometrisi ----------------
+export const SIDEW = { dirt: 0, street: 40 / 256, avenue: 26 / 256, highway: 0 }; // kaldırım oranı (genişliğe göre)
+export function computeJunctions() {
+  R.junc = new Map();
+  for (const N of R.nodes.values()) {
+    const ids = adjOf(N.id); if (!ids.length) continue;
+    const L = ids.map(sid => {
+      const s = R.segs.get(sid), g = segGeo(sid), f = s.a === N.id; const dx = f ? g.ux : -g.ux, dz = f ? g.uz : -g.uz;
+      const sw = SIDEW[s.t] * ROADS[s.t].w;
+      return { sid, t: s.t, dx, dz, nx: -dz, nz: dx, hw: g.hw, ah: g.hw - sw, sw, L: g.L, ang: Math.atan2(dz, dx) };
+    });
+    L.sort((a, b) => a.ang - b.ang);
+    const n = L.length, trims = new Map(L.map(r => [r.sid, 0])), corners = [];
+    const cap = r => Math.max(0, Math.min(r.L * .45, r.hw * 4 + 1.5));
+    for (let i = 0; i < n && n >= 2; i++) {
+      const a = L[i], b = L[(i + 1) % n];
+      let th = b.ang - a.ang; if (th <= 0) th += Math.PI * 2;
+      if (n === 2 && i === 1 && th === Math.PI * 2) th = 0;
+      const c = { a, b, th, kind: th < Math.PI - .35 ? 'corner' : th <= Math.PI + .35 ? 'straight' : 'reflex' };
+      if (c.kind === 'corner') {
+        // a'nın asfalt kenarı (a.n yönü) ile b'nin asfalt kenarı (-b.n yönü) kesişimi
+        const px = a.nx * a.ah + b.nx * b.ah, pz = a.nz * a.ah + b.nz * b.ah;
+        const det = a.dx * (-b.dz) - a.dz * (-b.dx);
+        if (Math.abs(det) > 1e-6) {
+          const rx = -px, rz = -pz;
+          const s0 = (rx * (-b.dz) - rz * (-b.dx)) / det, t0 = (a.dx * rz - a.dz * rx) / det;
+          const rad = (a.t === 'dirt' && b.t === 'dirt') ? .25 : (a.t === 'highway' || b.t === 'highway') ? .9 : .5 + .12 * Math.max(ROADS[a.t].lanes, ROADS[b.t].lanes);
+          const tl = rad / Math.tan(th / 2);
+          c.C = [N.x + a.dx * s0 + a.nx * a.ah, N.z + a.dz * s0 + a.nz * a.ah];
+          trims.set(a.sid, Math.max(trims.get(a.sid), Math.min(cap(a), s0 + tl)));
+          trims.set(b.sid, Math.max(trims.get(b.sid), Math.min(cap(b), t0 + tl)));
+        } else c.kind = 'straight';
+      }
+      corners.push(c);
+    }
+    // çokgen ve kaldırım kenarları
+    const poly = [], curbs = [], mouths = [];
+    const Lp = (r, t) => [N.x + r.dx * t + r.nx * r.ah, N.z + r.dz * t + r.nz * r.ah];
+    const Rp = (r, t) => [N.x + r.dx * t - r.nx * r.ah, N.z + r.dz * t - r.nz * r.ah];
+    if (n === 1) {
+      const a = L[0];
+      if (a.t !== 'highway') {
+        const pts = []; const a0 = Math.atan2(a.nz, a.nx);
+        for (let k = 0; k <= 10; k++) { const an = a0 + Math.PI * k / 10; pts.push([N.x + Math.cos(an) * a.ah, N.z + Math.sin(an) * a.ah]); }
+        poly.push(Rp(a, 0), ...pts.slice().reverse().slice(1, -1), Lp(a, 0));
+        // yay saat yönünde: L'den başlayıp R'ye; poligonda sıralama R,L sonra yay
+        poly.length = 0; poly.push(Rp(a, 0), Lp(a, 0), ...pts.slice(1, -1));
+        curbs.push({ pts: [Lp(a, 0), ...pts.slice(1, -1), Rp(a, 0)], sw: a.sw });
+      }
+      mouths.push({ ...a, trim: 0 });
+    } else {
+      for (let i = 0; i < n; i++) {
+        const c = corners[i], a = c.a, b = c.b, ta = trims.get(a.sid), tb = trims.get(b.sid);
+        const La = Lp(a, ta), Rb = Rp(b, tb);
+        poly.push(Rp(a, ta), La);
+        const cur = [La];
+        if (c.kind === 'corner') {
+          for (let k = 1; k < 8; k++) { const t = k / 8, u = 1 - t; cur.push([u * u * La[0] + 2 * u * t * c.C[0] + t * t * Rb[0], u * u * La[1] + 2 * u * t * c.C[1] + t * t * Rb[1]]); }
+        } else if (c.kind === 'reflex') {
+          const e0 = Lp(a, 0), e1 = Rp(b, 0); cur.push(e0);
+          const a0 = Math.atan2(a.nz, a.nx); let da = Math.atan2(-b.nz, -b.nx) - a0; while (da <= 0) da += Math.PI * 2;
+          const rad = Math.max(a.ah, b.ah), k = Math.max(2, Math.ceil(da / .25));
+          for (let j = 1; j < k; j++) { const an = a0 + da * j / k; cur.push([N.x + Math.cos(an) * rad, N.z + Math.sin(an) * rad]); }
+          cur.push(e1);
+        }
+        cur.push(Rb);
+        for (let k = 1; k < cur.length - 1; k++) poly.push(cur[k]);
+        curbs.push({ pts: cur, sw: Math.min(a.sw, b.sw) });
+      }
+      for (const r of L) mouths.push({ ...r, trim: trims.get(r.sid) });
+    }
+    R.junc.set(N.id, { trims, poly, curbs, mouths, dirt: L.every(r => r.t === 'dirt'), n });
+  }
+}
+export function trimAt(nodeId, sid) { const j = R.junc && R.junc.get(nodeId); return j ? (j.trims.get(sid) || 0) : 0; }
+
 // ---------------- doluluk ızgarası ----------------
 function rasterRect(cx, cz, a, w, d, val, pad = 0) {
   const ca = Math.cos(a), sa = Math.sin(a);
@@ -326,6 +488,7 @@ function cellsNear(x, z) { return R.cellHash.get(hkey(x, z, 1)) || []; }
 function addCellHash(c) { const k = hkey(c.x, c.z, 1); let a = R.cellHash.get(k); if (!a) R.cellHash.set(k, a = []); a.push(c.id); }
 function cellBlocked(x, z, sid) {
   if (!unlocked(x, z)) return true;
+  for (const d of (S.deco || [])) if (Math.hypot(x - d.x, z - d.z) < d.r + .6) return true;
   for (const [ox, oz] of [[0, 0], [.3, .3], [-.3, .3], [.3, -.3], [-.3, -.3]]) {
     const i = gi(x + ox, z + oz); if (i < 0) return true;
     const o = R.occ[i]; if (o === 2 || (o === 3 && ox === 0)) return true;
@@ -349,8 +512,7 @@ function buildCells(oldZones) {
   for (const sid of ids) {
     const s = R.segs.get(sid); if (!ROADS[s.t].zone) continue;
     const g = segGeo(sid);
-    const trim = n => (degree(n) > 1 ? nodeHW(n) + .25 : .2);
-    const ta = trim(s.a), tb = trim(s.b);
+    const ta = trimAt(s.a, sid) + .2, tb = trimAt(s.b, sid) + .2;
     for (const side of [1, -1]) {
       for (let k = 0; ; k++) {
         const sc = s.o + k + .5;
@@ -498,7 +660,8 @@ export function buyTile(t) { const r = tileBuyable(t); if (r !== 'ok') return r;
 
 // ---------------- topluca yeniden hesap ----------------
 export function rebuildAll(oldZones) {
-  R.sg.clear(); buildAdj(); buildSegHash();
+  R.sg.clear(); buildAdj(); buildSegHash(); computeJunctions();
+  if (S.deco) S.deco = S.deco.filter(d => [...R.nodes.values()].some(n => Math.abs(Math.hypot(n.x - d.x, n.z - d.z) - d.r) < 2.5 && degree(n.id) > 0));
   // eski hizmet binalarının yol bağlantısı
   buildOcc();
   buildCells(oldZones);
