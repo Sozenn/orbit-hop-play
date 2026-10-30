@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="description" content="Minik Metropol - telefonda oynanan 3D şehir kurma oyunu">
 <title>Minik Metropol</title>
-<link rel="stylesheet" href="style.css?v=3.0.0">
+<link rel="stylesheet" href="style.css?v=3.2.0">
 </head>
 <body>
 <div id="top">
@@ -40,6 +40,8 @@
 </div>
 
 <div id="rot">
+  <button class="ib" id="bUndo" aria-label="Geri al">↶</button>
+  <button class="ib" id="bView" aria-label="Görünüm">👁️</button>
   <button class="ib" id="bRotL" aria-label="Sola döndür">⟲</button>
   <button class="ib" id="bRotR" aria-label="Sağa döndür">⟳</button>
 </div>
@@ -54,6 +56,8 @@
 <div class="pill" id="toast"></div>
 <div id="costTag"></div>
 <div id="floaters"></div>
+<div class="pill" id="feed"></div>
+<div class="pill" id="legend"></div>
 
 <div id="menu">
   <div class="card">
@@ -75,14 +79,17 @@
         <li><b>🏘️ Bölge:</b> yolların kenarını konut, ticaret, ofis ya da sanayi olarak boya. Binalar kendiliğinden yapılır.</li>
         <li><b>⚡ Elektrik · 💧 Su</b> olmadan binalar çalışmaz.</li>
         <li><b>🏥 Hizmetler:</b> sağlık, okullar (ilkokul → üniversite), polis, itfaiye. Evler bunlarla büyüyüp apartmana ve gökdelene dönüşür.</li>
+        <li><b>〰️ Eğri yol</b> bir yolun ucundan kıvrılarak devam eder. <b>🌉 Köprü</b> modu rampalarla yükselir, altından geçen yollarla kesişmez. <b>⭕ Döner kavşak</b> için bir kavşağa dokun.</li>
+        <li><b>🕌 Kültür:</b> cami, kütüphane, müze. <b>🗑️ Çöp toplama</b> olmazsa mahalleler mutsuz olur.</li>
+        <li><b>👁️</b> düğmesi mutluluk, altyapı ve eğitim haritalarını gösterir. <b>↶</b> son işlemi geri alır.</li>
         <li><b>🗺️ Arazi:</b> şehir büyüdükçe yeni arazi satın al.</li>
         <li><b>🧨 Yık:</b> yola ya da binaya dokun. Bir şeye <b>✋ Gez</b> modunda dokunursan bilgisi ve Yık düğmesi çıkar.</li>
         <li>Tek parmak: işlem · İki parmak: kaydır, yakınlaştır, döndür.</li>
       </ul>
     </div>
-    <div class="ver">v3.1</div>
+    <div class="ver">v3.2</div>
   </div>
 </div>
-<script type="module" src="js/main.js?v=3.0.0"></script>
+<script type="module" src="js/main.js?v=3.2.0"></script>
 </body>
 </html>

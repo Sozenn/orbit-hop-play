@@ -28,7 +28,7 @@ export const ZONE_ORDER = ['r1', 'r2', 'c1', 'c2', 'o', 'i'];
 
 // Seviye atlama koşulları (hedef seviye -> koşul)
 export const LEVEL_REQ = {
-  R: { 2: { hap: 50, edu: 1 }, 3: { hap: 57, edu: 2, health: 1 }, 4: { hap: 64, edu: 3, police: 1 }, 5: { hap: 72, edu: 4, fire: 1 } },
+  R: { 2: { hap: 50, edu: 1 }, 3: { hap: 57, edu: 2, health: 1 }, 4: { hap: 64, edu: 3, police: 1, garbage: 1 }, 5: { hap: 72, edu: 4, fire: 1 } },
   C: { 2: { hap: 50, edu: 1 }, 3: { hap: 62, edu: 3 } },
   O: { 2: { hap: 52, edu: 2 }, 3: { hap: 64, edu: 4 } },
   I: { 2: { hap: 45, edu: 1 }, 3: { hap: 55, edu: 3 } },
@@ -52,6 +52,10 @@ export const SVC = {
   play: { n: 'Çocuk parkı', i: '🛝', cat: 'park', cost: 600, up: 0.1, w: 2, d: 2, r: 9, val: 8, ms: 0 },
   plaza: { n: 'Meydan', i: '⛲', cat: 'park', cost: 1500, up: 0.2, w: 3, d: 3, r: 13, val: 11, ms: 1 },
   bigpark: { n: 'Şehir parkı', i: '🏞️', cat: 'park', cost: 4000, up: 0.4, w: 5, d: 5, r: 22, val: 16, ms: 2 },
+  cop: { n: 'Çöp toplama merkezi', i: '🗑️', cat: 'garbage', cost: 3000, up: 0.6, w: 3, d: 3, r: 45, poll: 4, ms: 0 },
+  cami: { n: 'Cami', i: '🕌', cat: 'culture', cost: 5000, up: 0.3, w: 3, d: 3, r: 20, val: 10, ms: 0 },
+  kutup: { n: 'Kütüphane', i: '📚', cat: 'culture', cost: 3000, up: 0.5, w: 2, d: 2, r: 18, val: 7, ms: 1 },
+  muze: { n: 'Müze', i: '🖼️', cat: 'culture', cost: 9000, up: 0.9, w: 4, d: 3, r: 35, val: 12, tour: 6, ms: 2 },
   stadium: { n: 'Stadyum', i: '🏟️', cat: 'park', cost: 15000, up: 2, w: 6, d: 5, r: 45, val: 14, ms: 3 },
 };
 
@@ -73,6 +77,7 @@ export const CATS = [
   { id: 'util', n: 'Elektrik·Su', i: '⚡' },
   { id: 'svc', n: 'Hizmet', i: '🏥' },
   { id: 'park', n: 'Park', i: '🌳' },
+  { id: 'cult', n: 'Kültür', i: '🕌' },
   { id: 'land', n: 'Arazi', i: '🗺️' },
   { id: 'bull', n: 'Yık', i: '🧨' },
 ];

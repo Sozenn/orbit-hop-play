@@ -71,10 +71,10 @@ function triUp(arr, a, b, c, y) { // yukarı bakan üçgen
   const cr = (b[1] - a[1]) * (c[0] - a[0]) - (b[0] - a[0]) * (c[1] - a[1]);
   if (cr >= 0) arr.push(a[0], y, a[1], b[0], y, b[1], c[0], y, c[1]); else arr.push(a[0], y, a[1], c[0], y, c[1], b[0], y, b[1]);
 }
-function quadUV(o, P, UV, y) { // P: 4 köşe, yukarı bakacak şekilde sırala
+function quadUV(o, P, UV, y) { // P: 4 köşe, yukarı bakacak şekilde sırala; y sayı ya da köşe başına dizi
   const cr = (P[1][1] - P[0][1]) * (P[2][0] - P[0][0]) - (P[1][0] - P[0][0]) * (P[2][1] - P[0][1]);
   const ord = cr >= 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2];
-  for (const q of ord) { o.p.push(P[q][0], y, P[q][1]); o.n.push(0, 1, 0); o.u.push(UV[q][0], UV[q][1]); }
+  for (const q of ord) { o.p.push(P[q][0], Array.isArray(y) ? y[q] : y, P[q][1]); o.n.push(0, 1, 0); o.u.push(UV[q][0], UV[q][1]); }
 }
 export function buildRoads() {
   for (const c of [...roadGroup.children]) { roadGroup.remove(c); c.geometry.dispose(); }
@@ -87,13 +87,26 @@ export function buildRoads() {
     const ta = trimAt(s.a, s.id), tb = trimAt(s.b, s.id);
     const s0 = ta, s1 = g.L - tb;
     const at = t => [g.ax + g.ux * t, g.az + g.uz * t];
-    if (s1 - s0 > .02) {
-      const A = at(s0), B = at(s1), nx = g.nx, nz = g.nz;
-      quadUV(arr, [[A[0] + nx * hw, A[1] + nz * hw], [A[0] - nx * hw, A[1] - nz * hw], [B[0] - nx * hw, B[1] - nz * hw], [B[0] + nx * hw, B[1] + nz * hw]], [[0, s0 / rt.w], [1, s0 / rt.w], [1, s1 / rt.w], [0, s1 / rt.w]], y);
-    }
     const sw = SIDEW[s.t] * rt.w, ah = hw - sw, ang = Math.atan2(g.ux, g.uz);
+    const hAt = t => g.ha + (g.hb - g.ha) * clamp(t / g.L, 0, 1), elev = g.ha > 0 || g.hb > 0;
+    if (s1 - s0 > .02) {
+      const A = at(s0), B = at(s1), nx = g.nx, nz = g.nz, ya = y + hAt(s0), yb = y + hAt(s1);
+      quadUV(arr, [[A[0] + nx * hw, A[1] + nz * hw], [A[0] - nx * hw, A[1] - nz * hw], [B[0] - nx * hw, B[1] - nz * hw], [B[0] + nx * hw, B[1] + nz * hw]], [[0, s0 / rt.w], [1, s0 / rt.w], [1, s1 / rt.w], [0, s1 / rt.w]], [ya, ya, yb, yb]);
+    }
+    if (elev) {
+      // köprü tabliyesi, korkuluklar ve ayaklar
+      const step = .5;
+      for (let t = 0; t < g.L; t += step) {
+        const t1 = Math.min(g.L, t + step), tm = (t + t1) / 2, h = hAt(tm), P0 = at(tm);
+        if (h < .04) continue;
+        const c = ex(P0[0], P0[1], ang);
+        c.box('concrete_d', 'concrete', 0, h - .16, 0, hw * 2 + .14, .17, t1 - t + .02);
+        c.box('concrete', 'concrete', hw + .04, h, 0, .06, .1, t1 - t + .02); c.box('concrete', 'concrete', -hw - .04, h, 0, .06, .1, t1 - t + .02);
+      }
+      for (let t = 2; t < g.L - .5; t += 3.2) { const h = hAt(t); if (h < .45) continue; const P0 = at(t), c = ex(P0[0], P0[1], ang); if (hw > 1.1) { c.box('concrete', null, hw * .5, 0, 0, .28, h - .16, .3); c.box('concrete', null, -hw * .5, 0, 0, .28, h - .16, .3); } else c.box('concrete', null, 0, 0, 0, .35, h - .16, .3); c.box('concrete_d', 'concrete_d', 0, h - .28, 0, hw * 2, .12, .34); }
+    }
     // kavşak ağzı: yaya geçidi, dur çizgisi, trafik ışığı
-    if (s.t !== 'dirt' && s.t !== 'highway') for (const [nid, t0, dir] of [[s.a, ta, 1], [s.b, g.L - tb, -1]]) {
+    if (s.t !== 'dirt' && s.t !== 'highway' && !elev) for (const [nid, t0, dir] of [[s.a, ta, 1], [s.b, g.L - tb, -1]]) {
       const J = R.junc.get(nid); if (!J || J.n < 3) continue;
       if (s1 - s0 < 1.2) continue;
       const c = t0 + dir * .32, l = .3, C = at(c);
@@ -108,12 +121,12 @@ export function buildRoads() {
       const T = at(t0 + dir * .7), px = T[0] + ox * (ah + sw * .5), pz = T[1] + oz * (ah + sw * .5);
       const c2 = ex(px, pz, ang + (dir > 0 ? Math.PI : 0));
       c2.cyl('metal_d', 0, 0, 0, .02, .75, 6); c2.box('black', 'black', 0, .62, 0, .08, .22, .06);
-      const on = (nid + s.id) % 2 ? 'tl_green' : 'tl_red';
-      c2.box(on, on, 0, on === 'tl_red' ? .78 : .66, .032, .04, .04, .01);
+      const grp = Math.abs(Math.round(Math.atan2(g.uz, g.ux) / (Math.PI / 2))) % 2 ? 'A' : 'B';
+      c2.box('tl' + grp + '_r', 'tl' + grp + '_r', 0, .78, .032, .04, .04, .01); c2.box('tl' + grp + '_g', 'tl' + grp + '_g', 0, .66, .032, .04, .04, .01);
     }
     // köprü
-    let run = -1;
-    for (let t = 0; t <= g.L + .001; t += .5) {
+    let run = elev ? 1e9 : -1;
+    for (let t = 0; t <= g.L + .001 && !elev; t += .5) {
       const P0 = at(t), wet = isWater(P0[0], P0[1]);
       if (wet && run < 0) run = Math.max(0, t - 1);
       if ((!wet || t + .5 > g.L) && run >= 0) {
@@ -125,7 +138,8 @@ export function buildRoads() {
         run = -1;
       }
     }
-    if (s.t === 'highway' && s1 - s0 > .4) { const M2 = at((s0 + s1) / 2); ex(M2[0], M2[1], ang).box('concrete', 'concrete', 0, y, 0, .07, .09, s1 - s0 - .2); }
+    if (s.t === 'highway' && s1 - s0 > .4 && !elev) { const M2 = at((s0 + s1) / 2); ex(M2[0], M2[1], ang).box('concrete', 'concrete', 0, y, 0, .07, .09, s1 - s0 - .2); }
+    if (elev) continue;
     // bulvar refüjünde ve kaldırımlarda ağaçlar
     if (s.t === 'avenue') for (let t = s0 + 1.2; t < s1 - 1; t += 2.2) { const P0 = at(t); ex(P0[0], P0[1], ang).tree(0, 0, .75, hash(s.id * 31 + Math.round(t)) * .79); }
     if (s.t === 'street' || s.t === 'avenue') for (let t = s0 + 2.2; t < s1 - 1; t += 3.2) for (const sd of [1, -1]) { const P0 = at(t), o = (hw - sw * .45) * sd; ex(P0[0] + g.nx * o, P0[1] + g.nz * o, ang).tree(0, 0, .7, hash(s.id * 7 + Math.round(t) * sd) * .79); }
@@ -150,7 +164,9 @@ export function buildRoads() {
   for (const [nid, J] of R.junc) {
     const N = R.nodes.get(nid); if (!N || J.poly.length < 3) continue;
     const arr = J.dirt ? dirtDisc : disc, C = [N.x, N.z];
-    for (let k = 0; k < J.poly.length; k++) triUp(arr, C, J.poly[k], J.poly[(k + 1) % J.poly.length], .028);
+    const hy = N.h || 0;
+    for (let k = 0; k < J.poly.length; k++) triUp(arr, C, J.poly[k], J.poly[(k + 1) % J.poly.length], .028 + hy);
+    if (hy) { const c = ex(N.x, N.z, 0); c.cyl('concrete_d', 0, hy - .17, 0, nodeHW(nid) + .05, .17, 16); c.cyl('concrete', 0, 0, 0, .2, hy - .17, 10); }
     for (const c of J.curbs) {
       if (c.sw <= 0) continue;
       const P = c.pts, off = [];
@@ -158,7 +174,7 @@ export function buildRoads() {
         const p0 = P[Math.max(0, k - 1)], p1 = P[Math.min(P.length - 1, k + 1)], ex2 = p1[0] - p0[0], ez2 = p1[1] - p0[1], el = Math.hypot(ex2, ez2) || 1;
         off.push([P[k][0] + ez2 / el * c.sw, P[k][1] - ex2 / el * c.sw]);
       }
-      for (let k = 0; k < P.length - 1; k++) { triUp(curbs, P[k], P[k + 1], off[k + 1], .031); triUp(curbs, P[k], off[k + 1], off[k], .031); }
+      for (let k = 0; k < P.length - 1; k++) { triUp(curbs, P[k], P[k + 1], off[k + 1], .031 + hy); triUp(curbs, P[k], off[k + 1], off[k], .031 + hy); }
     }
   }
   // döner kavşak göbekleri
@@ -186,7 +202,8 @@ function bgeo(b) {
   if (c && c.sig === sig) return c;
   const out = new Map(), ctx = buildModel(b, out);
   const mats = new Map(); for (const [k, mb] of out) mats.set(k, { p: new Float32Array(mb.p), n: new Float32Array(mb.n), u: new Float32Array(mb.u) });
-  c = { sig, mats, emit: ctx.emit, dyn: ctx.dyn }; bcache.set(b.id, c); return c;
+  let H = .3; for (const [, a] of mats) for (let i = 1; i < a.p.length; i += 3) if (a.p[i] > H) H = a.p[i];
+  c = { sig, mats, emit: ctx.emit, dyn: ctx.dyn, H }; bcache.set(b.id, c); return c;
 }
 export function syncBuildings() {
   const byTile = new Map();
@@ -276,6 +293,18 @@ export function updConstruction(simDt, tm) {
   return done;
 }
 export const constructing = id => cons.has(id);
+
+// ---------- bilgi görünümü ----------
+const ovIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(.28, .28, .06, 16), new THREE.MeshBasicMaterial({ depthTest: false }), 3000);
+ovIM.count = 0; ovIM.renderOrder = 30; ovIM.frustumCulled = false; scene.add(ovIM);
+export function buildOverlay(colorFn) {
+  let n = 0;
+  if (colorFn) for (const b of R.blds.values()) {
+    const col = colorFn(b); if (!col || n >= 3000) continue;
+    const H = bgeo(b).H; _mt.makeTranslation(b.x, H + .35, b.z); ovIM.setMatrixAt(n, _mt); ovIM.setColorAt(n, _c.set(col)); n++;
+  }
+  ovIM.count = n; ovIM.instanceMatrix.needsUpdate = true; if (ovIM.instanceColor) ovIM.instanceColor.needsUpdate = true;
+}
 
 // ---------- ağaçlar ----------
 const MAXT = 12000;
@@ -388,13 +417,13 @@ export function updTraffic(dt) {
     c.t += dt * ROADS[s.t].speed * .9 / L;
     if (c.t >= 1) { c.t = 0; c.i++; if (c.i >= c.path.length - 1) { cars.splice(k, 1); continue; } continue; }
     const ux = (b.x - a.x) / L, uz = (b.z - a.z) / L, off = laneOff(s.t, c.lane);
-    c.x = a.x + (b.x - a.x) * c.t - uz * off; c.z = a.z + (b.z - a.z) * c.t + ux * off;
+    c.x = a.x + (b.x - a.x) * c.t - uz * off; c.z = a.z + (b.z - a.z) * c.t + ux * off; c.y = (a.h || 0) + ((b.h || 0) - (a.h || 0)) * c.t;
     const ry = Math.atan2(ux, uz);
     if (c.ry === null) c.ry = ry; let d = ry - c.ry; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; c.ry += d * Math.min(1, dt * 8);
   }
   for (const c of cars) {
     if (n >= MAXC) break;
-    _q.setFromAxisAngle(_Y, c.ry || 0); _mt.compose(_p.set(c.x, .03, c.z), _q, _s.set(c.sc > 1.2 ? 1.1 : 1, c.sc > 1.2 ? 1.5 : 1, c.sc));
+    _q.setFromAxisAngle(_Y, c.ry || 0); _mt.compose(_p.set(c.x, .03 + (c.y || 0), c.z), _q, _s.set(c.sc > 1.2 ? 1.1 : 1, c.sc > 1.2 ? 1.5 : 1, c.sc));
     carIM.setMatrixAt(n, _mt); carIM.setColorAt(n, _c.set(c.col));
     if (c.sc > 1.2) _mt.makeScale(0, 0, 0); cabIM.setMatrixAt(n, _mt); n++;
   }
@@ -402,6 +431,56 @@ export function updTraffic(dt) {
   carIM.count = cabIM.count = n; carIM.instanceMatrix.needsUpdate = cabIM.instanceMatrix.needsUpdate = true; if (carIM.instanceColor) carIM.instanceColor.needsUpdate = true;
 }
 export function clearTraffic() { cars = []; }
+
+// ---------- yayalar ----------
+const MAXP = 260;
+const pBody = new THREE.InstancedMesh(new THREE.CylinderGeometry(.03, .035, .15, 6).translate(0, .1, 0), new THREE.MeshStandardMaterial({ roughness: .8 }), MAXP);
+const pHead = new THREE.InstancedMesh(new THREE.SphereGeometry(.028, 6, 5).translate(0, .205, 0), new THREE.MeshStandardMaterial({ color: 0xe0b896, roughness: .8 }), MAXP);
+pBody.count = pHead.count = 0; pBody.frustumCulled = pHead.frustumCulled = false; scene.add(pBody, pHead);
+const PCOL = ['#c0392b', '#2980b9', '#27ae60', '#8e44ad', '#f39c12', '#2c3e50', '#ecf0f1', '#d35400', '#16a085', '#7f8c8d'];
+let people = [];
+const walkable = s => (s.t === 'street' || s.t === 'avenue') && !(R.nodes.get(s.a).h || R.nodes.get(s.b).h);
+export function updPeople(dt) {
+  const target = Math.min(MAXP, Math.floor((R.st.pop || 0) / 4));
+  if (people.length < target && Math.random() < dt * 6) {
+    const segs = [...R.segs.values()].filter(walkable);
+    if (segs.length) { const s = segs[(Math.random() * segs.length) | 0], g = segGeo(s.id); people.push({ sid: s.id, t: Math.random() * g.L, dir: Math.random() < .5 ? 1 : -1, side: Math.random() < .5 ? 1 : -1, v: .22 + Math.random() * .15, col: PCOL[(Math.random() * PCOL.length) | 0], ph: Math.random() * 6 }); }
+  } else if (people.length > target + 5) people.pop();
+  let n = 0;
+  for (let k = people.length - 1; k >= 0; k--) {
+    const p = people[k], s = R.segs.get(p.sid);
+    if (!s || !walkable(s)) { people.splice(k, 1); continue; }
+    const g = segGeo(s.id);
+    p.t += p.dir * p.v * dt; p.ph += dt * 10;
+    if (p.t < 0 || p.t > g.L) {
+      const node = p.t < 0 ? s.a : s.b, opts = [...R.segs.values()].filter(o => o.id !== s.id && walkable(o) && (o.a === node || o.b === node));
+      if (opts.length && Math.random() < .85) { const o = opts[(Math.random() * opts.length) | 0], og = segGeo(o.id); p.sid = o.id; p.dir = o.a === node ? 1 : -1; p.t = o.a === node ? 0 : og.L; }
+      else { p.dir *= -1; p.t = clamp(p.t, 0, g.L); }
+      continue;
+    }
+    if (n >= MAXP) continue;
+    const off = (g.hw - SIDEW[s.t] * ROADS[s.t].w * .5) * p.side;
+    _q.setFromAxisAngle(_Y, Math.atan2(g.ux * p.dir, g.uz * p.dir));
+    _mt.compose(_p.set(g.ax + g.ux * p.t + g.nx * off, .03 + Math.abs(Math.sin(p.ph)) * .012, g.az + g.uz * p.t + g.nz * off), _q, _s.set(1, 1, 1));
+    pBody.setMatrixAt(n, _mt); pHead.setMatrixAt(n, _mt); pBody.setColorAt(n, _c.set(p.col)); n++;
+  }
+  pBody.count = pHead.count = n; pBody.instanceMatrix.needsUpdate = pHead.instanceMatrix.needsUpdate = true; if (pBody.instanceColor) pBody.instanceColor.needsUpdate = true;
+}
+export function clearPeople() { people = []; }
+
+// ---------- bulutlar ----------
+const clouds = [];
+{
+  const cm = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true, transparent: true, opacity: .92 });
+  const ig = new THREE.IcosahedronGeometry(1, 1);
+  for (let k = 0; k < 16; k++) {
+    const g = new THREE.Group();
+    const n = 4 + (k % 4);
+    for (let j = 0; j < n; j++) { const m = new THREE.Mesh(ig, cm); const r = 2 + Math.random() * 2.2; m.scale.set(r, r * .6, r * .9); m.position.set((j - n / 2) * 2.4 + Math.random(), Math.random() * .8, Math.random() * 2 - 1); m.castShadow = true; g.add(m); }
+    g.position.set((Math.random() - .5) * 300, 26 + Math.random() * 8, (Math.random() - .5) * 300); g.userData.v = .5 + Math.random() * .5;
+    scene.add(g); clouds.push(g);
+  }
+}
 
 // ---------- duman / toz ----------
 const softTex = softTexture();
@@ -417,6 +496,14 @@ export function updFx(dt, simDt, tm) {
     const s = p.s0 + a * p.grow; p.sp.scale.set(s, s, 1); p.sp.material.opacity = (1 - a) * .55;
   }
   for (const r of rotors) r.rotation.z += dt * 2.2;
+  for (const c of clouds) { c.position.x += c.userData.v * dt; if (c.position.x > 160) c.position.x = -160; }
+  // trafik ışıkları: A ve B grupları dönüşümlü
+  const ph = Math.floor(tm / 7000) % 2;
+  for (const [g, on] of [['A', ph === 0], ['B', ph === 1]]) {
+    const r = MAT['tl' + g + '_r'].m, gr = MAT['tl' + g + '_g'].m;
+    r.emissiveIntensity = on ? 0 : 1.2; r.color.set(on ? '#3a1414' : '#ff3b30');
+    gr.emissiveIntensity = on ? 1.2 : 0; gr.color.set(on ? '#34c759' : '#123a1c');
+  }
 }
 
 // ---------- vurgular / hayalet ----------
@@ -426,13 +513,14 @@ export function setGhostRoad(plan) {
   clearGhost(); if (!plan) return;
   ghostMat.color.set(plan.ok ? 0x7dff8c : 0xff5a5a);
   const w = ROADS[plan.type].w;
-  const P = plan.curve ? plan.pts : [plan.A, plan.B];
+  const P = (plan.curve || plan.elev) ? plan.pts : [plan.A, plan.B];
   for (let i = 0; i < P.length - 1; i++) {
     const A = P[i], B = P[i + 1], L = Math.hypot(B.x - A.x, B.z - A.z); if (L < .01) continue;
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, L + (plan.curve ? w * .2 : 0)).rotateX(-Math.PI / 2), ghostMat);
-    m.position.set((A.x + B.x) / 2, .06, (A.z + B.z) / 2); m.rotation.y = Math.atan2(B.x - A.x, B.z - A.z); m.renderOrder = 4; ghost.add(m);
+    const hy = plan.elev ? ((i > 0 ? 1 : 0) + (i < P.length - 2 ? 1 : 0)) * .55 : 0;
+    m.position.set((A.x + B.x) / 2, .06 + hy, (A.z + B.z) / 2); m.rotation.y = Math.atan2(B.x - A.x, B.z - A.z); m.renderOrder = 4; ghost.add(m);
   }
-  const marks = plan.curve ? [plan.A, plan.B] : (plan.pts.length ? plan.pts : [plan.A, plan.B]);
+  const marks = (plan.curve || plan.elev) ? [plan.A, plan.B] : (plan.pts.length ? plan.pts : [plan.A, plan.B]);
   for (const p of marks) { const d = new THREE.Mesh(new THREE.RingGeometry(w / 2 + .05, w / 2 + .25, 24).rotateX(-Math.PI / 2), ghostMat); d.position.set(p.x, .07, p.z); d.renderOrder = 4; ghost.add(d); }
 }
 export function setGhostNode(n, ok) {
@@ -538,5 +626,5 @@ export function setQuality(hi) {
 }
 export function resetWorldGfx() {
   for (const ch of chunks.values()) { scene.remove(ch.group); ch.group.traverse(o => o.geometry && o.geometry.dispose()); }
-  chunks.clear(); bcache.clear(); cars = []; for (const c of cons.values()) scene.remove(c.group); cons.clear(); for (const sp of icons.values()) scene.remove(sp); icons.clear();
+  chunks.clear(); bcache.clear(); cars = []; people = []; for (const c of cons.values()) scene.remove(c.group); cons.clear(); for (const sp of icons.values()) scene.remove(sp); icons.clear();
 }

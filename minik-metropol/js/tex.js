@@ -147,7 +147,7 @@ export function initMaterials() {
   nightMats.push(MAT.cross.m);
   std('flag', { map: canvasTex(96, 64, g => { g.fillStyle = '#e30a17'; g.fillRect(0, 0, 96, 64); g.fillStyle = '#fff'; g.beginPath(); g.arc(36, 32, 16, 0, 7); g.fill(); g.fillStyle = '#e30a17'; g.beginPath(); g.arc(40, 32, 13, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); for (let k = 0; k < 10; k++) { const a = k * Math.PI / 5, r = k % 2 ? 3.4 : 8; g.lineTo(57 + Math.cos(a) * r, 32 + Math.sin(a) * r); } g.fill(); }, { repeat: false }), side: THREE.DoubleSide }, 1, 1);
   for (const [k, c] of [['sign_r', '#d63031'], ['sign_b', '#0984e3'], ['sign_g', '#00b894'], ['sign_y', '#fdcb6e'], ['sign_p', '#6c5ce7']]) { const m = col(k, c, { emissive: c, emissiveIntensity: 0 }); nightMats.push(m); }
-  col('tl_red', '#ff3b30', { emissive: '#ff3b30', emissiveIntensity: .9 }); col('tl_green', '#34c759', { emissive: '#34c759', emissiveIntensity: .9 });
+  for (const g of ['A', 'B']) { col('tl' + g + '_r', '#ff3b30', { emissive: '#ff3b30', emissiveIntensity: .9 }); col('tl' + g + '_g', '#34c759', { emissive: '#34c759', emissiveIntensity: .9 }); }
   col('lamp', '#fff3c4', { emissive: '#ffd27a', emissiveIntensity: 0 }); nightMats.push(MAT.lamp.m);
 }
 

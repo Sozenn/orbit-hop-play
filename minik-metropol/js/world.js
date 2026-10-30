@@ -76,7 +76,7 @@ export function newGame() {
 }
 function pathHasWater(x0, z0, x1, z1) { const L = Math.hypot(x1 - x0, z1 - z0); for (let s = 0; s <= L; s += .5) { const t = s / L; if (isWater(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t)) return true; } return false; }
 export function serialize() {
-  S.nodes = [...R.nodes.values()].map(n => [n.id, +n.x.toFixed(3), +n.z.toFixed(3), n.out ? 1 : 0]);
+  S.nodes = [...R.nodes.values()].map(n => [n.id, +n.x.toFixed(3), +n.z.toFixed(3), n.out ? 1 : 0, n.h || 0]);
   S.segs = [...R.segs.values()].map(s => [s.id, s.a, s.b, s.t, +s.o.toFixed(4)]);
   S.blds = [...R.blds.values()].map(b => ({ ...b, cells: undefined }));
   S.zones = {}; for (const c of R.cells.values()) if (c.zt) S.zones[c.pk] = c.zt;
@@ -87,7 +87,7 @@ export function deserialize(json) {
   if (!s || s.v !== 3) return false;
   S = s; genTerrain(S.seed);
   R.nodes.clear(); R.segs.clear(); R.blds.clear(); R.cells.clear(); R.cellByKey.clear();
-  for (const [id, x, z, o] of S.nodes) R.nodes.set(id, { id, x, z, out: !!o });
+  for (const [id, x, z, o, h] of S.nodes) R.nodes.set(id, { id, x, z, out: !!o, h: h || 0 });
   for (const [id, a, b, t, o] of S.segs) R.segs.set(id, { id, a, b, t, o: o || 0 });
   for (const b of S.blds) R.blds.set(b.id, b);
   rebuildAll(S.zones);
@@ -99,7 +99,7 @@ export function segGeo(id) {
   let g = R.sg.get(id); if (g) return g;
   const s = R.segs.get(id), A = R.nodes.get(s.a), B = R.nodes.get(s.b);
   const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz) || 1e-6;
-  g = { ax: A.x, az: A.z, bx: B.x, bz: B.z, L, ux: dx / L, uz: dz / L, nx: -dz / L, nz: dx / L, hw: ROADS[s.t].w / 2 };
+  g = { ax: A.x, az: A.z, bx: B.x, bz: B.z, L, ux: dx / L, uz: dz / L, nx: -dz / L, nz: dx / L, hw: ROADS[s.t].w / 2, ha: A.h || 0, hb: B.h || 0 };
   R.sg.set(id, g); return g;
 }
 export function distSeg(x, z, g) {
@@ -141,7 +141,9 @@ export function nearestSeg(x, z, maxD, filter) {
 }
 
 // ---------------- yol grafiği ----------------
-export function addNode(x, z, out = false) { const id = S.nid++; R.nodes.set(id, { id, x, z, out }); return id; }
+export function addNode(x, z, out = false, h = 0) { const id = S.nid++; R.nodes.set(id, { id, x, z, out, h }); return id; }
+export const level = s => { const a = R.nodes.get(s.a).h || 0, b = R.nodes.get(s.b).h || 0; return a > 0 && b > 0 ? 'e' : a > 0 || b > 0 ? 'r' : 'g'; };
+const isGround = s => level(s) === 'g';
 export function addSeg(a, b, t, o = 0) { const id = S.sid++; R.segs.set(id, { id, a, b, t, o }); R.sg.delete(id); return id; }
 function adjOf(n) { return R.adj.get(n) || []; }
 function buildAdj() { R.adj.clear(); for (const s of R.segs.values()) { for (const n of [s.a, s.b]) { let a = R.adj.get(n); if (!a) R.adj.set(n, a = []); a.push(s.id); } } }
@@ -164,9 +166,9 @@ function splitSeg(id, x, z) {
 function resolvePoint(x, z, type) {
   const hw = ROADS[type].w / 2;
   let bn = null, bd = Infinity;
-  for (const n of R.nodes.values()) { const d = Math.hypot(n.x - x, n.z - z); if (d < Math.max(1.2, hw + nodeHW(n.id) + .3) && d < bd) { bd = d; bn = n; } }
+  for (const n of R.nodes.values()) { if (n.h) continue; const d = Math.hypot(n.x - x, n.z - z); if (d < Math.max(1.2, hw + nodeHW(n.id) + .3) && d < bd) { bd = d; bn = n; } }
   if (bn) return { x: bn.x, z: bn.z, node: bn.id };
-  const ns = nearestSeg(x, z, hw + .5);
+  const ns = nearestSeg(x, z, hw + .5, isGround);
   if (ns) {
     const s = R.segs.get(ns.id), near = hw + ns.hw + 1;
     if (ns.t < near) { const A = R.nodes.get(s.a); return { x: A.x, z: A.z, node: A.id }; }
@@ -216,9 +218,11 @@ export function planRoad(x0, z0, x1, z1, type) {
   const skipSeg = new Set([A.split, B.split].filter(Boolean));
   for (const s of R.segs.values()) {
     if (skipSeg.has(s.id) || skipNode.has(s.a) || skipNode.has(s.b)) continue;
+    const lv = level(s); if (lv === 'e') continue;
     const g = segGeo(s.id);
     const I = segIntersect(A.x, A.z, B.x, B.z, g.ax, g.az, g.bx, g.bz);
     if (!I) continue;
+    if (lv === 'r') { plan.msg = 'Köprü rampasıyla kesişemez'; return plan; }
     if (!segAng(s.id, ux, uz)) { plan.msg = 'Yollar çok dar açıyla kesişiyor'; return plan; }
     const ul = I.u * g.L, nr = rt.w / 2 + g.hw + 1;
     if (ul < nr) cross.push({ t: I.t, x: g.ax, z: g.az, node: s.a });
@@ -245,7 +249,7 @@ export function planRoad(x0, z0, x1, z1, type) {
     let nearPt = false;
     for (const p of pts) { const ow = p.node ? nodeHW(p.node) : p.split ? segGeo(p.split).hw : 0; if (Math.hypot(p.x - x, p.z - z) < (rt.w / 2 + ow + .25) / Math.sin(MINANG) + .2) { nearPt = true; break; } }
     if (nearPt) continue;
-    const ns = nearestSeg(x, z, rt.w / 2 + .2);
+    const ns = nearestSeg(x, z, rt.w / 2 + .2, s2 => level(s2) !== 'e');
     if (ns && ns.d < ns.hw + rt.w / 2 + .15) { plan.msg = 'Başka bir yola çok yakın'; return plan; }
     // hizmet binası
     const oi = gi(x, z); if (oi >= 0 && R.occ[oi] === 2) { plan.msg = 'Önünde bir bina var'; return plan; }
@@ -269,6 +273,58 @@ export function commitRoad(plan) {
   rebuildAll();
   return true;
 }
+// Köprü / üst geçit: rampalarla yükselen yol
+export const BRIDGE_H = 1.15, RAMP_L = 6;
+export function planElevated(x0, z0, x1, z1, type) {
+  const rt = ROADS[type], hw = rt.w / 2;
+  const elevNode = (x, z) => { let b = null, bd = 1.4; for (const n of R.nodes.values()) if (n.h) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; b = n; } } return b; };
+  const rs = (x, z) => { const e = elevNode(x, z); return e ? { x: e.x, z: e.z, node: e.id, elev: true } : resolvePoint(x, z, type); };
+  const A = rs(x0, z0), B = rs(x1, z1);
+  const plan = { ok: false, msg: '', cost: 0, elev: true, type, A, B, pts: [], len: 0, bridge: 0 };
+  const dx = B.x - A.x, dz = B.z - A.z, D = Math.hypot(dx, dz); plan.len = D;
+  const ux = dx / D, uz = dz / D;
+  const needA = !A.elev, needB = !B.elev;
+  if (D < (needA ? RAMP_L : 0) + (needB ? RAMP_L : 0) + 2) { plan.msg = 'Köprü için mesafe çok kısa (rampalar yer kaplar)'; return plan; }
+  if (A.node && B.node && A.node === B.node) { plan.msg = 'Yol çok kısa'; return plan; }
+  const A2 = needA ? { x: A.x + ux * RAMP_L, z: A.z + uz * RAMP_L } : A, B2 = needB ? { x: B.x - ux * RAMP_L, z: B.z - uz * RAMP_L } : B;
+  plan.pts = [A, ...(needA ? [A2] : []), ...(needB ? [B2] : []), B];
+  // uç açıları (zemin düğümleri)
+  for (const [P, vx, vz] of [[A, ux, uz], [B, -ux, -uz]]) {
+    if (P.node) for (const id of adjOf(P.node)) { const s = R.segs.get(id), o = R.nodes.get(s.a === P.node ? s.b : s.a), N = R.nodes.get(P.node); const ex = o.x - N.x, ez = o.z - N.z, el = Math.hypot(ex, ez); if ((ex * vx + ez * vz) / el > Math.cos(MINANG)) { plan.msg = 'Açı çok dar'; return plan; } }
+    if (P.split) { const g = segGeo(P.split); if (Math.abs(g.ux * vx + g.uz * vz) > Math.cos(MINANG)) { plan.msg = 'Açı çok dar'; return plan; } }
+  }
+  // örnekleme
+  const skipN = new Set([A.node, B.node].filter(Boolean)), skipS = new Set([A.split, B.split].filter(Boolean));
+  for (let t = 0; t <= D; t += .4) {
+    const x = A.x + ux * t, z = A.z + uz * t;
+    if (!unlocked(x, z)) { plan.msg = 'Bu arazi henüz senin değil (🗺️ Arazi)'; return plan; }
+    const onRampA = needA && t < RAMP_L, onRampB = needB && t > D - RAMP_L, high = !onRampA && !onRampB;
+    const nearEnd = Math.min(t, D - t) < hw + 1.8;
+    const seen = new Set();
+    for (const dxh of [-1, 0, 1]) for (const dzh of [-1, 0, 1]) for (const id of segsNear(x + dxh * HB, z + dzh * HB)) {
+      if (seen.has(id) || skipS.has(id)) continue; seen.add(id);
+      const s = R.segs.get(id); if (skipN.has(s.a) || skipN.has(s.b)) { if (nearEnd) continue; }
+      const lv = level(s), g = segGeo(id), d = distSeg(x, z, g).d;
+      if (high) { if (lv !== 'g' && d < g.hw + hw + .1) { plan.msg = 'Başka bir köprüye çok yakın'; return plan; } }
+      else if (!nearEnd && d < g.hw + hw + .1) { plan.msg = 'Rampa başka bir yolla çakışıyor'; return plan; }
+    }
+    const oi = gi(x, z); if (!high && oi >= 0 && R.occ[oi] === 2) { plan.msg = 'Önünde bir bina var'; return plan; }
+  }
+  plan.cost = Math.ceil(D * rt.cost * 3);
+  if (S.money < plan.cost) { plan.msg = 'Yeterli paran yok'; return plan; }
+  plan.ok = true; return plan;
+}
+export function commitElevated(plan) {
+  if (!plan.ok) return false;
+  const nodeFor = p => p.node ? p.node : p.split && R.segs.has(p.split) ? splitSeg(p.split, p.x, p.z) : addNode(p.x, p.z);
+  const a = nodeFor(plan.A), b = nodeFor(plan.B);
+  const ids = [a];
+  const P = plan.pts; for (let i = 1; i < P.length - 1; i++) ids.push(addNode(P[i].x, P[i].z, false, BRIDGE_H));
+  ids.push(b);
+  for (let i = 0; i < ids.length - 1; i++) addSeg(ids[i], ids[i + 1], plan.type);
+  S.money -= plan.cost; rebuildAll(); return true;
+}
+
 // Eğri yol: var olan bir yolun ucundan teğet devam eder
 export function planCurve(x0, z0, x1, z1, type) {
   let A = resolvePoint(x0, z0, type), B = resolvePoint(x1, z1, type), rev = false;
@@ -321,6 +377,7 @@ export function makeRoundabout(nodeId) {
   const arms = adjOf(nodeId).map(id => R.segs.get(id));
   if (arms.length < 3) return 'Döner kavşak için 3 ya da daha fazla yollu bir kavşağa dokun';
   if (arms.some(s => s.t === 'highway')) return 'Otoban kavşağı döner kavşak olamaz';
+  if (N.h) return 'Köprü üstünde döner kavşak yapılamaz';
   const maxHW = Math.max(...arms.map(s => ROADS[s.t].w / 2));
   const ringT = arms.some(s => s.t === 'avenue') ? 'avenue' : 'street';
   const r = 2.2 + maxHW * 1.3;
@@ -510,7 +567,7 @@ function buildCells(oldZones) {
   R.cells.clear(); R.cellByKey.clear(); R.cellHash.clear(); nextCell = 1;
   const ids = [...R.segs.keys()].sort((a, b) => a - b);
   for (const sid of ids) {
-    const s = R.segs.get(sid); if (!ROADS[s.t].zone) continue;
+    const s = R.segs.get(sid); if (!ROADS[s.t].zone || level(s) !== 'g') continue;
     const g = segGeo(sid);
     const ta = trimAt(s.a, sid) + .2, tb = trimAt(s.b, sid) + .2;
     for (const side of [1, -1]) {
@@ -603,7 +660,7 @@ function spawnZone(zt) {
 // Hizmet binası yerleştirme planı
 export function planSvc(x, z, sid) {
   const D = SVC[sid];
-  const ns = nearestSeg(x, z, 5 + Math.max(D.w, D.d) / 2, s => s.t !== 'highway');
+  const ns = nearestSeg(x, z, 5 + Math.max(D.w, D.d) / 2, s => s.t !== 'highway' && isGround(s));
   const p = { ok: false, msg: '', x, z, a: 0, w: D.w, d: D.d, svc: sid, cost: D.cost };
   if (!ns) { p.msg = 'Bir yolun yanına koy'; return p; }
   const g = ns.g, side = Math.sign((x - ns.px) * g.nx + (z - ns.pz) * g.nz) || 1;
@@ -667,7 +724,7 @@ export function rebuildAll(oldZones) {
   buildCells(oldZones);
   relinkBuildings();
   for (const b of R.blds.values()) if (b.svc) {
-    const ns = nearestSeg(b.x, b.z, Math.max(b.w, b.d) / 2 + 1.2, s => s.t !== 'highway');
+    const ns = nearestSeg(b.x, b.z, Math.max(b.w, b.d) / 2 + 1.2, s => s.t !== 'highway' && isGround(s));
     b.seg = ns ? ns.id : 0;
   }
   buildOcc();
@@ -697,7 +754,7 @@ export function needs(b) {
 }
 export function derive() {
   const st = { pop: 0, jobs: 0, jobsC: 0, jobsO: 0, jobsI: 0, eSup: 0, eDem: 0, wSup: 0, wDem: 0, hap: 0, n: 0, inc: 0, exp: 0, net: 0, Rd: 0, Cd: 0, Od: 0, Id: 0, roadLen: 0, cntZ: { r: 0, c: 0, i: 0, o: 0 }, svcCnt: {}, workers: 0, unemp: 0 };
-  const svcs = { health: [], edu: [], police: [], fire: [], park: [], poll: [] };
+  const svcs = { health: [], edu: [], police: [], fire: [], park: [], poll: [], garbage: [] }; let tour = 0;
   for (const b of R.blds.values()) {
     if (!b.svc) continue;
     const D = SVC[b.svc]; st.svcCnt[b.svc] = (st.svcCnt[b.svc] || 0) + 1;
@@ -705,7 +762,7 @@ export function derive() {
     st.exp += D.up;
     if (!b.ok) continue;
     if (D.elec) st.eSup += D.elec; if (D.water) st.wSup += D.water;
-    if (D.cat in svcs) svcs[D.cat].push(b);
+    if (D.cat in svcs) svcs[D.cat].push(b); if (D.cat === 'culture') svcs.park.push(b); if (D.tour) tour += D.tour;
     if (D.poll) svcs.poll.push({ x: b.x, z: b.z, p: D.poll, r: 14 });
   }
   for (const s of R.segs.values()) { const g = segGeo(s.id); st.roadLen += g.L; st.exp += g.L * ROADS[s.t].up; }
@@ -736,7 +793,8 @@ export function derive() {
   const inR = (b, s, r) => (b.x - s.x) ** 2 + (b.z - s.z) ** 2 <= r * r;
   for (const b of zb) {
     const k = ZONES[b.zt].k;
-    const cov = { health: 0, edu: 0, police: 0, fire: 0, park: 0, poll: 0, noise: 0 };
+    const cov = { health: 0, edu: 0, police: 0, fire: 0, park: 0, poll: 0, noise: 0, garbage: 0 };
+    for (const s of svcs.garbage) if (inR(b, s, SVC[s.svc].r)) { cov.garbage = 1; break; }
     for (const s of svcs.health) if (inR(b, s, SVC[s.svc].r)) { cov.health = 1; break; }
     for (const s of svcs.police) if (inR(b, s, SVC[s.svc].r)) { cov.police = 1; break; }
     for (const s of svcs.fire) if (inR(b, s, SVC[s.svc].r)) { cov.fire = 1; break; }
@@ -750,6 +808,7 @@ export function derive() {
     h += Math.min(25, cov.park) * (k === 'I' ? 0 : k === 'R' ? 1 : .6);
     h -= Math.min(35, cov.poll * 1.5) + cov.noise;
     if (k === 'R') h -= st.unemp * 25;
+    if (!cov.garbage && S.maxPop > 150 && k !== 'I') h -= 8;
     h -= (S.tax - 1) * 40;
     b.hap = clamp(Math.round(h), 0, 100); b.cov = cov;
     if (k !== 'R') b.pop = (b.conn && b.pow && b.wat) ? Math.round(b.cap * fill) : 0;
@@ -761,7 +820,7 @@ export function derive() {
   st.Cd = clamp((st.pop * .22 + 12 - st.jobsC) / Math.max(20, st.pop * .1), -1, 1);
   st.Od = S.ms >= 2 ? clamp((st.pop * .16 + 10 - st.jobsO) / Math.max(20, st.pop * .1), -1, 1) : 0;
   st.Id = clamp((st.pop * .26 + 25 - st.jobsI) / Math.max(20, st.pop * .1), -1, 1);
-  st.inc = (st.pop * .15 + st.jobsC * fill * .15 + st.jobsO * fill * .22 + st.jobsI * fill * .12) * S.tax;
+  st.inc = tour * Math.min(1, st.pop / 300) + (st.pop * .15 + st.jobsC * fill * .15 + st.jobsO * fill * .22 + st.jobsI * fill * .12) * S.tax;
   st.net = st.inc - st.exp;
   R.st = st;
   return st;
@@ -789,7 +848,7 @@ export function tick() {
     const Z = ZONES[b.zt]; if (b.lvl >= Z.maxL) continue;
     const req = LEVEL_REQ[Z.k][b.lvl + 1]; if (!req) continue;
     const full = Z.k === 'R' ? b.pop >= b.cap * .9 : b.pop >= b.cap * .6;
-    const ok = b.conn && b.pow && b.wat && full && b.hap >= req.hap && (b.cov?.edu || 0) >= (req.edu || 0) && (!req.health || b.cov?.health) && (!req.police || b.cov?.police) && (!req.fire || b.cov?.fire);
+    const ok = b.conn && b.pow && b.wat && full && b.hap >= req.hap && (b.cov?.edu || 0) >= (req.edu || 0) && (!req.health || b.cov?.health) && (!req.police || b.cov?.police) && (!req.fire || b.cov?.fire) && (!req.garbage || b.cov?.garbage);
     if (ok) { b.prog++; if (b.prog >= 12 && Math.random() < .25) { b.lvl++; b.prog = 0; b.cap = Z.per[b.lvl - 1] * b.w * b.d; R.events.push({ t: 'up', id: b.id }); R.dirty.blds = true; } }
     else b.prog = Math.max(0, b.prog - 1);
   }

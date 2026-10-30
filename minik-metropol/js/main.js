@@ -36,8 +36,8 @@ function sfx(k) {
 
 // ---------- oyun durumu ----------
 let isPreview = true, running = false, paused = false, speed = 1;
-let cat = 'pan', item = null, brush = 1.6, curveMode = false, lastRoad = 'street';
-const lastItem = { road: 'street', zone: 'r1', util: 'wind', svc: 'clinic', park: 'park' };
+let cat = 'pan', item = null, brush = 1.6, curveMode = false, elevMode = false, lastRoad = 'street';
+const lastItem = { road: 'street', zone: 'r1', util: 'wind', svc: 'clinic', park: 'park', cult: 'cami' };
 
 // ---------- HUD ----------
 let toastT = 0;
@@ -88,13 +88,13 @@ function buildCats() {
 function itemsFor(c) {
   const s = S(), ms = s ? s.ms : 0;
   if (c === 'road') return [...ROAD_ORDER.map(k => ({ id: k, i: ROADS[k].i, n: ROADS[k].n, pr: ROADS[k].cost + '/m', lock: ROADS[k].ms > ms ? ROADS[k].ms : 0, sw: k === 'dirt' ? '#9b7b55' : k === 'highway' ? '#9a9a96' : '#3e4147' })),
-    { id: 'curve', i: '〰️', n: 'Eğri yol', pr: curveMode ? 'AÇIK' : 'kapalı', on: curveMode }, { id: 'round', i: '⭕', n: 'Döner kavşak', pr: 'kavşağa dokun' }];
+    { id: 'curve', i: '〰️', n: 'Eğri yol', pr: curveMode ? 'AÇIK' : 'kapalı', on: curveMode }, { id: 'elev', i: '🌉', n: 'Köprü / üst geçit', pr: elevMode ? 'AÇIK' : 'kapalı', on: elevMode }, { id: 'round', i: '⭕', n: 'Döner kavşak', pr: 'kavşağa dokun' }];
   if (c === 'zone') return [...ZONE_ORDER.map(k => ({ id: k, i: ZONES[k].i, n: ZONES[k].n + ' ' + ZONES[k].sub, lock: ZONES[k].ms > ms ? ZONES[k].ms : 0, sw: ZONES[k].c })), { id: 'x', i: '🚫', n: 'Bölgeyi sil', sw: '#fff' }, { id: 'brush', i: brush < 1 ? '•' : brush < 2 ? '●' : '⬤', n: 'Fırça ' + (brush < 1 ? 'küçük' : brush < 2 ? 'orta' : 'büyük') }];
-  const cats = { util: ['wind', 'coal', 'solar', 'wtower', 'pump'], svc: ['clinic', 'hosp', 'ilk', 'orta', 'lise', 'uni', 'police', 'fire'], park: ['park', 'play', 'plaza', 'bigpark', 'stadium'] }[c];
+  const cats = { util: ['wind', 'coal', 'solar', 'wtower', 'pump'], svc: ['clinic', 'hosp', 'ilk', 'orta', 'lise', 'uni', 'police', 'fire', 'cop'], park: ['park', 'play', 'plaza', 'bigpark', 'stadium'], cult: ['cami', 'kutup', 'muze'] }[c];
   if (cats) return cats.map(k => ({ id: k, i: SVC[k].i, n: SVC[k].n, pr: '💰' + fmt(SVC[k].cost), lock: SVC[k].ms > ms ? SVC[k].ms : 0 }));
   return [];
 }
-const HINTS = { pan: 'Kaydırmak için sürükle · Bir şeye dokun: bilgi ve yıkma', road: 'Sürükle: yol çiz · Yollar kesişince kavşak olur · Var olan yola dokun: seçili tipe dönüştür', zone: 'Yolun kenarındaki kareleri parmağınla boya', util: 'Bir yolun yanına sürükleyip bırak', svc: 'Bir yolun yanına sürükleyip bırak · Halka etki alanını gösterir', park: 'Bir yolun yanına sürükleyip bırak', land: 'Yeşil araziye dokunup satın al', bull: 'Yıkmak istediğin yola ya da binaya dokun' };
+const HINTS = { pan: 'Kaydırmak için sürükle · Bir şeye dokun: bilgi ve yıkma', road: 'Sürükle: yol çiz · Yollar kesişince kavşak olur · Var olan yola dokun: seçili tipe dönüştür', zone: 'Yolun kenarındaki kareleri parmağınla boya', util: 'Bir yolun yanına sürükleyip bırak', svc: 'Bir yolun yanına sürükleyip bırak · Halka etki alanını gösterir', park: 'Bir yolun yanına sürükleyip bırak', land: 'Yeşil araziye dokunup satın al', cult: 'Bir yolun yanına sürükleyip bırak · Çevredeki evleri mutlu eder', bull: 'Yıkmak istediğin yola ya da binaya dokun' };
 function buildSub() {
   const box = $('sub'); box.innerHTML = '';
   $('subhint').textContent = HINTS[cat] || '';
@@ -105,7 +105,8 @@ function buildSub() {
     b.onclick = () => {
       initAudio(); sfx('tap');
       if (it.id === 'brush') { brush = brush < 1 ? 1.6 : brush < 2 ? 2.6 : .7; buildSub(); return; }
-      if (it.id === 'curve') { curveMode = !curveMode; if (item === 'round') item = lastRoad; toast(curveMode ? '〰️ Eğri yol açık: bir yolun ucundan başlayıp sürükle, yol kıvrılarak devam eder' : 'Düz yol modu'); buildSub(); return; }
+      if (it.id === 'elev') { elevMode = !elevMode; if (elevMode) curveMode = false; if (item === 'round') item = lastRoad; toast(elevMode ? '🌉 Köprü modu: yol rampalarla yükselir, altından geçen yollarla kesişmez' : 'Normal yol modu'); buildSub(); return; }
+      if (it.id === 'curve') { curveMode = !curveMode; if (curveMode) elevMode = false; if (item === 'round') item = lastRoad; toast(curveMode ? '〰️ Eğri yol açık: bir yolun ucundan başlayıp sürükle, yol kıvrılarak devam eder' : 'Düz yol modu'); buildSub(); return; }
       if (cat === 'road' && it.id !== 'round') lastRoad = it.id;
       if (it.lock) { toast(`🔒 ${it.n}: şehrin <b>${MILES[it.lock].title}</b> olunca açılır`); return; }
       item = it.id; lastItem[cat] = it.id; buildSub();
@@ -156,14 +157,14 @@ function showInfo(o, quiet) {
       h += `<h3>${Z.i} ${Z.n} (${Z.sub}) · Seviye ${b.lvl}/${Z.maxL}</h3>`;
       h += k === 'R' ? `👥 Sakin: ${b.pop}/${b.cap}` : `💼 Çalışan: ${b.pop}/${b.cap}`;
       h += ` · 😊 ${b.hap}%`;
-      h += `<div class="chk"><span>🛣️ Otobana bağlı ${yn(b.conn)}</span><span>⚡ Elektrik ${yn(b.pow)}</span><span>💧 Su ${yn(b.wat)}</span><span>🩺 Sağlık ${yn(c.health)}</span><span>🎓 Eğitim: ${EDU[c.edu || 0]}</span><span>🚓 Polis ${yn(c.police)}</span><span>🚒 İtfaiye ${yn(c.fire)}</span><span>🌳 Park ${c.park ? '+' + Math.min(25, c.park) : '—'}</span>${c.poll ? `<span>🏭 Kirlilik -${Math.round(Math.min(35, c.poll * 1.5))}</span>` : ''}${c.noise ? `<span>🔊 Otoban gürültüsü</span>` : ''}</div>`;
+      h += `<div class="chk"><span>🛣️ Otobana bağlı ${yn(b.conn)}</span><span>⚡ Elektrik ${yn(b.pow)}</span><span>💧 Su ${yn(b.wat)}</span><span>🩺 Sağlık ${yn(c.health)}</span><span>🎓 Eğitim: ${EDU[c.edu || 0]}</span><span>🚓 Polis ${yn(c.police)}</span><span>🚒 İtfaiye ${yn(c.fire)}</span><span>🌳 Park·Kültür ${c.park ? '+' + Math.min(25, c.park) : '—'}</span><span>🗑️ Çöp ${yn(c.garbage)}</span>${c.poll ? `<span>🏭 Kirlilik -${Math.round(Math.min(35, c.poll * 1.5))}</span>` : ''}${c.noise ? `<span>🔊 Otoban gürültüsü</span>` : ''}</div>`;
       const req = LEVEL_REQ[k][b.lvl + 1];
       if (req) {
         const miss = [];
         if (!b.conn) miss.push('otobana bağlı yol'); if (!b.pow) miss.push('elektrik'); if (!b.wat) miss.push('su');
         if (b.hap < req.hap) miss.push(`mutluluk ${req.hap}%`);
         if ((c.edu || 0) < (req.edu || 0)) miss.push(EDU[req.edu]);
-        if (req.health && !c.health) miss.push('sağlık'); if (req.police && !c.police) miss.push('polis'); if (req.fire && !c.fire) miss.push('itfaiye');
+        if (req.health && !c.health) miss.push('sağlık'); if (req.garbage && !c.garbage) miss.push('çöp toplama'); if (req.police && !c.police) miss.push('polis'); if (req.fire && !c.fire) miss.push('itfaiye');
         h += `<div class="need">${miss.length ? '⬆️ Büyümesi için: ' + miss.join(', ') : '⬆️ Koşullar tamam, ' + (k === 'R' ? 'dolunca' : 'çalışanlar gelince') + ' büyüyecek'}</div>`;
       } else h += `<div class="need">⭐ En üst seviyede</div>`;
     }
@@ -182,6 +183,7 @@ function showInfo(o, quiet) {
 }
 function hideInfo() { $('info').style.display = 'none'; selObj = null; G.setSelect(null); }
 function act(o, a) {
+  pushUndo();
   if (a === 'del') { if (o.kind === 'bld') { const b = R.blds.get(o.id); removeBld(o.id); sfx('bull'); if (b) G.dust(b.x, b.z); } else { const r = deleteSeg(o.id); if (r !== true) { toast(r); sfx('err'); return; } sfx('bull'); } hideInfo(); afterChange(); return; }
   if (a.startsWith('up:')) { const r = upgradeSeg(o.id, a.slice(3)); if (r !== true) { toast(r === 'same' ? 'Zaten bu tip' : r); sfx('err'); return; } sfx('road'); hideInfo(); afterChange(); }
 }
@@ -203,6 +205,60 @@ function showStats() {
 $('bStats').onclick = () => { initAudio(); sfx('tap'); if ($('statsPanel').style.display === 'block') $('statsPanel').style.display = 'none'; else showStats(); };
 $('statsX').onclick = () => { $('statsPanel').style.display = 'none'; };
 
+// ---------- geri al ----------
+const undoStack = [];
+function pushUndo() { if (isPreview || !S()) return; undoStack.push(Wd.serialize()); if (undoStack.length > 10) undoStack.shift(); }
+function undo() {
+  if (!undoStack.length) { toast('Geri alınacak işlem yok'); sfx('err'); return; }
+  const tk = S().tk, snap = undoStack.pop();
+  if (Wd.deserialize(snap)) { S().tk = tk; loadWorldGfx(); hideInfo(); afterChange(); toast('↶ Geri alındı'); sfx('tap'); }
+}
+$('bUndo').onclick = () => { initAudio(); undo(); };
+
+// ---------- bilgi görünümleri ----------
+let view = 0;
+const VIEWS = [
+  null,
+  { n: '😊 Mutluluk', leg: [['#2ecc71', 'mutlu'], ['#f1c40f', 'orta'], ['#e74c3c', 'mutsuz']], f: b => b.svc ? null : b.hap >= 65 ? '#2ecc71' : b.hap >= 45 ? '#f1c40f' : '#e74c3c' },
+  { n: '⚡💧 Altyapı', leg: [['#2ecc71', 'tam'], ['#f39c12', 'su yok'], ['#e74c3c', 'elektrik yok'], ['#7f8c8d', 'yol yok']], f: b => b.svc ? null : !b.conn ? '#7f8c8d' : !b.pow ? '#e74c3c' : !b.wat ? '#f39c12' : '#2ecc71' },
+  { n: '🎓 Eğitim', leg: [['#7f8c8d', 'yok'], ['#e67e22', 'ilk'], ['#f1c40f', 'orta'], ['#2ecc71', 'lise'], ['#3498db', 'ünv']], f: b => b.svc ? null : ['#7f8c8d', '#e67e22', '#f1c40f', '#2ecc71', '#3498db'][b.cov?.edu || 0] },
+  { n: '🩺🚓🚒🗑️ Hizmetler', leg: [['#2ecc71', 'hepsi var'], ['#f1c40f', '1-2 eksik'], ['#e74c3c', 'çoğu yok']], f: b => { if (b.svc) return null; const c = b.cov || {}; const m = [c.health, c.police, c.fire, c.garbage].filter(x => !x).length; return m === 0 ? '#2ecc71' : m <= 2 ? '#f1c40f' : '#e74c3c'; } },
+];
+function applyView() {
+  const v = VIEWS[view]; G.buildOverlay(v ? v.f : null);
+  const L = $('legend'); if (!v) { L.style.display = 'none'; return; }
+  L.style.display = 'block'; L.innerHTML = '<b>' + v.n + '</b>' + v.leg.map(([c, t]) => `<i style="background:${c}"></i>${t}`).join('');
+}
+$('bView').onclick = () => { initAudio(); sfx('tap'); view = (view + 1) % VIEWS.length; applyView(); if (!view) toast('Normal görünüm'); };
+
+// ---------- vatandaş mesajları ----------
+let lastFeed = 0, feedT = 0;
+function feed() {
+  const st = R.st, s = S(); if (!s || isPreview || s.tk - lastFeed < 36) return;
+  const opts = [];
+  if (st.eDem > st.eSup) opts.push('⚡ <b>Ayşe:</b> Elektrikler kesik, buzdolabım çalışmıyor! Santral lazım.');
+  if (st.wDem > st.wSup) opts.push('💧 <b>Mehmet:</b> Musluklardan su akmıyor! Su kulesi kurun.');
+  if (st.unemp > .15) opts.push('💼 <b>Can:</b> İş bulamıyorum. Biraz ticaret ve sanayi alanı açın.');
+  if (st.Rd > .6) opts.push('🏠 <b>Emlakçı Hasan:</b> Şehre taşınmak isteyen çok kişi var, konut alanı açın!');
+  if (st.Cd > .6) opts.push('🛍️ <b>Zeynep:</b> Alışveriş yapacak dükkan yok, ticaret bölgesi istiyoruz.');
+  if (st.Id > .6) opts.push('🏭 <b>Usta Ali:</b> Sanayi bölgesi açılsa çok iş olur.');
+  const zb = [...R.blds.values()].filter(b => !b.svc);
+  if (zb.length > 20) {
+    const frac = k => zb.filter(b => !(b.cov && b.cov[k])).length / zb.length;
+    if (frac('health') > .4) opts.push('🩺 <b>Fatma Teyze:</b> En yakın sağlık ocağı çok uzak.');
+    if (frac('garbage') > .4 && s.maxPop > 150) opts.push('🗑️ <b>Murat:</b> Çöpler toplanmıyor, sokaklar koktu!');
+    if (frac('police') > .5) opts.push('🚓 <b>Elif:</b> Mahallede hiç polis görmüyoruz.');
+    if (frac('fire') > .5) opts.push('🚒 <b>Kemal:</b> Yangın çıkarsa itfaiye yetişemez.');
+    if (zb.filter(b => (b.cov?.edu || 0) === 0).length / zb.length > .4) opts.push('🎒 <b>Selin:</b> Çocuklarımız için okul lazım!');
+  }
+  if (s.money < 2000) opts.push('💸 <b>Belediye muhasebesi:</b> Kasa boşalıyor! Vergileri ya da giderleri gözden geçirin.');
+  if (!opts.length && st.pop > 50) opts.push(st.hap > 70 ? '😊 <b>Deniz:</b> Bu şehirde yaşamak harika, başkanımıza teşekkürler!' : '🙂 <b>Burak:</b> Şehir güzelleşiyor, park biraz daha olsa iyi olur.');
+  if (!opts.length) return;
+  lastFeed = s.tk;
+  const f = $('feed'); f.innerHTML = '💬 ' + opts[(Math.random() * opts.length) | 0]; f.classList.add('on');
+  clearTimeout(feedT); feedT = setTimeout(() => f.classList.remove('on'), 6000);
+}
+
 // ---------- değişiklik sonrası ----------
 function afterChange() {
   const d = R.dirty;
@@ -219,7 +275,7 @@ function afterChange() {
     else if (e.t === 'dust' || e.t === 'gone') G.dust(e.x, e.z);
     else if (e.t === 'ms') { toast('🎉 ' + MILES[e.ms].msg + (MILES[e.ms].bonus ? `<br>+${fmt(MILES[e.ms].bonus)} 💰` : ''), 4500); sfx('win'); buildSub(); }
   }
-  checkTut(); updHud();
+  checkTut(); updHud(); if (view) applyView();
 }
 
 // ---------- girdi ----------
@@ -229,9 +285,10 @@ cv.addEventListener('contextmenu', e => e.preventDefault());
 function costTag(x, y, txt, ok) { const t = $('costTag'); if (!txt) { t.style.display = 'none'; return; } t.style.display = 'block'; t.style.left = x + 'px'; t.style.top = y + 'px'; t.innerHTML = txt; t.style.color = ok ? '#9ff59f' : '#ff9a8a'; }
 function actionDown(x, y) {
   const g = groundAt(x, y); if (!g || !S()) return;
+  if (cat === 'zone' || cat === 'bull') pushUndo();
   if (cat === 'zone') { doPaint(g); }
   else if (cat === 'bull') doBull(g, true);
-  else if (cat === 'util' || cat === 'svc' || cat === 'park') { GS.plan = planSvc(g[0], g[1], item); G.setGhostBld(GS.plan); costTag(x, y, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
+  else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult') { GS.plan = planSvc(g[0], g[1], item); G.setGhostBld(GS.plan); costTag(x, y, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
 }
 function doPaint(g) {
   if (item === 'brush' || !item) return;
@@ -269,10 +326,10 @@ cv.addEventListener('pointermove', e => {
     if (far) GS.moved = true;
     const g = groundAt(e.clientX, e.clientY); if (!g) return;
     if (cat === 'road' && item === 'round') { const n = Wd.roundaboutAt(g[0], g[1]); G.setGhostNode(n, !!n); }
-    else if (cat === 'road' && GS.moved && GS.start) { GS.plan = curveMode ? Wd.planCurve(GS.start[0], GS.start[1], g[0], g[1], item) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${GS.plan.bridge ? ' · 🌉 köprü' : ''}` : GS.plan.msg, GS.plan.ok); }
+    else if (cat === 'road' && GS.moved && GS.start) { GS.plan = elevMode ? Wd.planElevated(GS.start[0], GS.start[1], g[0], g[1], item) : curveMode ? Wd.planCurve(GS.start[0], GS.start[1], g[0], g[1], item) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `${GS.plan.elev ? '🌉 ' : ''}${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${GS.plan.bridge ? ' · 🌉 köprü' : ''}` : GS.plan.msg, GS.plan.ok); }
     else if (cat === 'zone') doPaint(g);
     else if (cat === 'bull') doBull(g, false);
-    else if (cat === 'util' || cat === 'svc' || cat === 'park') { GS.plan = planSvc(g[0], g[1], item); G.setGhostBld(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
+    else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult') { GS.plan = planSvc(g[0], g[1], item); G.setGhostBld(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
   } else if (GS.mode === 'pinch' && ptrs.size >= 2) {
     const [p1, p2] = [...ptrs.values()], d = Math.hypot(p1.x - p2.x, p1.y - p2.y), a = Math.atan2(p2.y - p1.y, p2.x - p1.x);
     cam.dist = clamp(GS.dist0 * GS.d0 / d, 6, 120); cam.yaw = GS.yaw0 - (a - GS.a0); cam.yawT = cam.yaw; updCam();
@@ -284,20 +341,20 @@ function endPtr(e) {
   if (GS && ptrs.size === 0) {
     const g = groundAt(e.clientX, e.clientY);
     if (GS.mode === 'pan' && !GS.moved && g) {
-      if (cat === 'land') { const t = tileOf(g[0], g[1]); if (t >= 0) { const r = buyTile(t); if (r === true) { sfx('win'); toast('🗺️ Yeni arazi alındı!'); afterChange(); G.buildTiles(true, tileBuyable, tileCost()); } else if (r !== 'owned') { toast(r); sfx('err'); } } }
+      if (cat === 'land') { const t = tileOf(g[0], g[1]); if (t >= 0) { pushUndo(); const r = buyTile(t); if (r === true) { sfx('win'); toast('🗺️ Yeni arazi alındı!'); afterChange(); G.buildTiles(true, tileBuyable, tileCost()); } else if (r !== 'owned') { toast(r); sfx('err'); } } }
       else { const o = pickAt(g[0], g[1]); if (o) showInfo(o); else hideInfo(); }
     } else if (GS.mode === 'act') {
       if (cat === 'road' && item === 'round') {
         const n = g && Wd.roundaboutAt(g[0], g[1]);
         if (!n) { toast('⭕ Döner kavşak için 3 ya da daha fazla yolun buluştuğu bir kavşağa dokun'); sfx('err'); }
-        else { const r = Wd.makeRoundabout(n.id); if (r === true) { sfx('road'); toast('⭕ Döner kavşak yapıldı'); afterChange(); } else { toast(r); sfx('err'); } }
+        else { pushUndo(); const r = Wd.makeRoundabout(n.id); if (r === true) { sfx('road'); toast('⭕ Döner kavşak yapıldı'); afterChange(); } else { toast(r); sfx('err'); } }
         G.clearGhost();
       } else if (cat === 'road') {
-        if (GS.moved && GS.plan) { if (GS.plan.ok) { if (GS.plan.curve) Wd.commitCurve(GS.plan); else commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
-        else if (!GS.moved && g && item !== 'round') { const ns = nearestSeg(g[0], g[1], .3); if (ns && ns.d <= ns.hw + .3) { const s = R.segs.get(ns.id); if (s.t === item) showInfo({ kind: 'seg', id: ns.id }); else { const r = upgradeSeg(ns.id, item); if (r === true) { sfx('road'); toast(`${ROADS[item].i} Yol ${ROADS[item].n} oldu`); afterChange(); } else { toast(r); sfx('err'); } } } }
+        if (GS.moved && GS.plan) { if (GS.plan.ok) { pushUndo(); if (GS.plan.elev) Wd.commitElevated(GS.plan); else if (GS.plan.curve) Wd.commitCurve(GS.plan); else commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
+        else if (!GS.moved && g && item !== 'round') { const ns = nearestSeg(g[0], g[1], .3); if (ns && ns.d <= ns.hw + .3) { const s = R.segs.get(ns.id); if (s.t === item) showInfo({ kind: 'seg', id: ns.id }); else { pushUndo(); const r = upgradeSeg(ns.id, item); if (r === true) { sfx('road'); toast(`${ROADS[item].i} Yol ${ROADS[item].n} oldu`); afterChange(); } else { toast(r); sfx('err'); } } } }
         G.clearGhost();
-      } else if (cat === 'util' || cat === 'svc' || cat === 'park') {
-        if (GS.plan) { if (GS.plan.ok) { const p = GS.plan; commitSvc(p); sfx('build'); floatAt(p.x, p.z, '-' + fmt(p.cost)); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
+      } else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult') {
+        if (GS.plan) { if (GS.plan.ok) { pushUndo(); const p = GS.plan; commitSvc(p); sfx('build'); floatAt(p.x, p.z, '-' + fmt(p.cost)); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
         G.clearGhost();
       } else if (cat === 'zone' && e.pointerType !== 'mouse') G.clearGhost();
     }
@@ -339,7 +396,7 @@ function openMenu() {
   $('mNew').textContent = 'Yeni şehir'; $('mNew').className = has ? 'btn sec' : 'btn'; updOpts();
 }
 function loadWorldGfx() {
-  G.resetWorldGfx(); G.clearTraffic(); G.buildWater();
+  G.resetWorldGfx(); G.clearTraffic(); G.clearPeople(); G.buildWater();
   R.dirty.roads = R.dirty.blds = R.dirty.trees = R.dirty.cells = R.dirty.tiles = true;
 }
 function startGame() {
@@ -354,7 +411,7 @@ $('mCont').onclick = () => {
   toast('Kayıt açılamadı');
 };
 $('mNew').onclick = () => {
-  initAudio(); sfx('tap');
+  initAudio(); sfx('tap'); undoStack.length = 0;
   if (((!isPreview && S()) || hasSave()) && !confirmNew) { confirmNew = true; $('mNew').textContent = 'Eminsen tekrar dokun (eski şehir silinir)'; return; }
   Wd.newGame(); cam.x = -6; cam.z = 2; cam.dist = 34; cam.yaw = cam.yawT = Math.PI * .25; updCam();
   startGame(); save(); setTimeout(() => toast('Hoş geldin, Başkan! 👋 Otoban seni bekliyor.', 2600), 300);
@@ -370,9 +427,9 @@ function frame(tm) {
   const dtMs = Math.min(100, tm - lastT); lastT = tm; const dt = dtMs / 1000;
   let simDt = 0;
   if (S() && (running || isPreview) && !paused) {
-    if (running) { acc += dtMs * speed; let n = 0; while (acc >= 1000 && n++ < 4) { acc -= 1000; Wd.tick(); if (S().tk % 30 === 0) save(); afterChange(); } if (acc > 3000) acc = 0; }
+    if (running) { acc += dtMs * speed; let n = 0; while (acc >= 1000 && n++ < 4) { acc -= 1000; Wd.tick(); if (S().tk % 30 === 0) save(); afterChange(); feed(); } if (acc > 3000) acc = 0; }
     simDt = dt * (running ? speed : 1);
-    G.updTraffic(simDt);
+    G.updTraffic(simDt); G.updPeople(simDt);
   }
   if (isPreview && $('menu').style.display !== 'none') { cam.yawT += dt * .05; cam.yaw = cam.yawT; }
   if (Math.abs(cam.yawT - cam.yaw) > 1e-3) cam.yaw += (cam.yawT - cam.yaw) * Math.min(1, dt * 8);

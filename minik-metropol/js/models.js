@@ -82,6 +82,10 @@ export class Ctx {
     if (v > .8) this.cone('leaf2', lx, .2 * s, lz, .2 * s, .6 * s, 7);
     else this.geo(lk, cg('ico', () => new THREE.IcosahedronGeometry(1, 0)), lx, .42 * s, lz, v * 6, .22 * s, .24 * s, .22 * s);
   }
+  car(lx, lz, ry, col) {
+    this.geo(col, cg('carb', () => new THREE.BoxGeometry(.22, .1, .48).translate(0, .08, 0)), lx, 0, lz, ry);
+    this.geo('glass', cg('carc', () => new THREE.BoxGeometry(.19, .08, .24).translate(0, .17, -.03)), lx, 0, lz, ry);
+  }
   smoke(lx, ly, lz, kind = 'smoke') { this.emit.push({ p: this.W(lx, ly, lz), kind }); }
 }
 
@@ -93,6 +97,7 @@ const SF = ['sf_red', 'sf_blue', 'sf_green', 'sf_orange', 'sf_purple', 'sf_teal'
 const SIGN = ['sign_r', 'sign_b', 'sign_g', 'sign_y', 'sign_p'];
 const GLASS = ['of_glassB', 'of_glassG', 'of_glassD', 'of_glassGold', 'of_glassB'];
 const IND = ['ind_grey', 'ind_blue', 'ind_red', 'ind_brick'];
+const CARS = ['red', 'blue', 'white', 'black', 'yellow', 'metal', 'greenc'];
 
 // ---------------- konut (az yoğun) ----------------
 function r1(c, b) {
@@ -108,7 +113,8 @@ function r1(c, b) {
     c.box('brown', 'brown', -.12, 0, cz + hd / 2 + .001, .14, .26, .01, {});
     c.box('concrete', 'concrete', hw * .2, h + .05, cz - hd * .2, .07, .25, .07);
     c.flat('pave', -.12, .006, fz - .1, .16, .2);
-    if (W >= 2) { c.box('white', 'roof_grey', .62, 0, cz + .05, .42, .3, .5); c.flat('concrete', .62, .006, fz - .15, .38, .32); }
+    if (W >= 2) { c.box('white', 'roof_grey', .62, 0, cz + .05, .42, .3, .5); c.flat('concrete', .62, .006, fz - .15, .38, .32); c.car(.62, fz - .16, 0, pick(CARS, v2)); }
+    else if (hash(b.id * 13) < .5) c.car(W / 2 - .2, fz - .28, 0, pick(CARS, v));
     c.tree(W / 2 - .2, -D / 2 + .25, .8, v2);
     if (D >= 2) c.tree(-W / 2 + .25, -D / 2 + .3, .9, v);
     // çit
@@ -122,6 +128,7 @@ function r1(c, b) {
     c.hip(roof, hw / 2 - .05, FH, cz - .15, .5, Math.min(D - .2, hd + .4), .18);
     c.box('white', 'white', -.05, FH, cz + hd / 2 + .08, hw * .6, .03, .16); // balkon
     c.flat('pave', -.2, .006, fz - .12, .2, .24);
+    if (W >= 2) c.car(W / 2 - .3, fz - .3, 0, pick(CARS, v2));
     if (L === 4 && D >= 2) { c.flat('pave', 0, .005, -D / 2 + .55, Math.min(1.2, W - .3), .7); c.flat('pool', 0, .012, -D / 2 + .55, Math.min(.9, W - .6), .4); }
     c.tree(-W / 2 + .2, -D / 2 + .25, 1, v2); c.tree(W / 2 - .2, -D / 2 + .3, .8, v);
     c.box('hedge', 'hedge', 0, 0, fz - .03, W - .5, .12, .06);
@@ -201,6 +208,7 @@ function c2(c, b) {
   if (L === 1) { // süpermarket / AVM + otopark
     const bd = D * .55, cz = -D / 2 + bd / 2 + .1;
     c.flat('lot', 0, .006, D / 2 - (D - bd) / 2, W - .1, D - bd - .2);
+    for (let k = 0; k < Math.floor(W * 2.5); k++) if (hash(b.id * 5 + k) < .6) c.car(-W / 2 + .3 + k * .4, D / 2 - (D - bd) / 2 + (k % 2 ? .3 : -.3), 0, pick(CARS, hash(b.id + k)));
     c.box('ind_grey', 'gravel', 0, 0, cz, W - .2, .7, bd, { front: sf });
     c.box(sg, sg, 0, .72, cz + bd / 2 - .05, W * .5, .18, .05);
     c.box('metal', 'metal', -W * .2, .7, cz, .4, .14, .3);
@@ -342,6 +350,43 @@ const SVCM = {
     for (const [x, z] of [[0, 1.2], [0, -1.2]]) c.box('wood', 'wood', x, .05, z, .4, .04, .1);
   },
   bigpark(c, b) { park(c, b, true); },
+  cop(c, b) {
+    c.flat('lot', 0, .005, 0, 3, 3);
+    c.box('ind_grey', 'metal', -.6, 0, -.5, 1.6, .6, 1.4); c.gable('metal_d', -.6, .6, -.5, 1.66, 1.46, .25);
+    for (const [x, z, r] of [[.9, -.8, .45], [1.0, .2, .35]]) c.cone('brown', x, 0, z, r, .4, 7);
+    for (const x of [-.8, -.2]) { c.box('greenc', 'greenc', x, 0, 1.1, .22, .22, .55); c.box('white', 'white', x, .05, .8, .2, .17, .14); }
+    c.box('metal_d', null, 0, 0, 1.48, 3, .3, .03);
+  },
+  cami(c, b) {
+    c.flat('pave', 0, .005, 0, 3, 3);
+    c.box('civic', 'gravel', 0, 0, -.25, 1.7, .8, 1.7);
+    c.cyl('civic', 0, .8, -.25, .62, .18, 24);
+    c.sphere('roof_grey', 0, .98, -.25, .62, .75);
+    for (const [x, z] of [[.85, -.25], [-.85, -.25], [0, .6], [0, -1.1]]) c.sphere('roof_grey', x, .8, z, .32, .6);
+    c.cyl('yellow', 0, 1.44, -.25, .015, .2, 6); c.sphere('yellow', 0, 1.66, -.25, .04);
+    for (const x of [-1.15, 1.15]) {
+      c.cyl('white', x, 0, .65, .09, 2.5, 12); c.cyl('white', x, 1.85, .65, .13, .05, 12); c.cyl('white', x, 2.2, .65, .11, .04, 12);
+      c.cone('roof_grey', x, 2.5, .65, .1, .5, 12); c.cyl('yellow', x, 3, .65, .01, .12, 4);
+    }
+    c.cyl('concrete', 0, 0, 1.05, .25, .12, 12); c.cone('roof_grey', 0, .35, 1.05, .32, .25, 8); for (let k = 0; k < 6; k++) { const a = k / 6 * 6.28; c.cyl('white', Math.cos(a) * .25, 0, 1.05 + Math.sin(a) * .25, .015, .35, 4); }
+    c.tree(-1.2, -1.2, .9, .4); c.tree(1.2, -1.2, .9, .2);
+  },
+  kutup(c, b) {
+    c.flat('pave', 0, .005, 0, 2, 2);
+    c.box('civic', 'roof_grey', 0, .12, -.2, 1.5, .7, 1.1); c.gable('roof_grey', 0, .82, -.2, 1.6, 1.2, .3);
+    c.box('concrete', 'concrete', 0, 0, .1, 1.6, .12, 1.6);
+    for (let k = -2; k <= 2; k++) c.cyl('white', k * .3, .12, .4, .04, .7, 8);
+    c.box('civic', null, 0, .82, .45, 1.5, .08, .06);
+    c.tree(-.8, .8, .7, .3); c.tree(.8, .8, .7, .6);
+  },
+  muze(c, b) {
+    c.flat('pave', 0, .005, 0, 4, 3);
+    c.box('of_glassD', 'gravel', -.3, 0, -.2, 2.6, 1, 1.8);
+    c.box('white', 'white', .3, 1, 0, 3.2, .12, 2.2);
+    c.box('civic', 'gravel', 1.3, 0, -.4, .9, 1.5, 1.2);
+    c.sphere('metal', -1.4, .35, .95, .3); c.box('concrete', 'concrete', -1.4, 0, .95, .3, .1, .3);
+    c.flat('pool', .6, .01, 1.1, 1.6, .4);
+  },
   stadium(c, b) {
     c.flat('lot', 0, .004, 0, b.w, b.d);
     const w = b.w - .4, d = b.d - .4;
