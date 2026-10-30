@@ -387,6 +387,26 @@ const SVCM = {
     c.sphere('metal', -1.4, .35, .95, .3); c.box('concrete', 'concrete', -1.4, 0, .95, .3, .1, .3);
     c.flat('pool', .6, .01, 1.1, 1.6, .4);
   },
+  busdep(c, b) {
+    c.flat('lot', 0, .005, 0, 3, 3);
+    c.box('ind_blue', 'metal', 0, 0, -.8, 2.6, .7, 1.2); c.box('white', 'white', 0, .7, -.8, 2.7, .05, 1.3);
+    for (let k = 0; k < 4; k++) { c.box('blue', 'blue', -1 + k * .66, 0, .6, .26, .3, .9); c.box('glass', 'glass', -1 + k * .66, .17, .6, .27, .09, .86); }
+    c.box('sign_b', 'sign_b', 0, .5, -.19, 1.2, .14, .02);
+  },
+  busstop(c, b) {
+    c.flat('pave', 0, .006, 0, 1, 1);
+    c.box('glass', 'metal_d', 0, 0, -.25, .8, .45, .04); c.box('metal_d', 'metal_d', 0, .45, -.1, .9, .03, .35);
+    for (const x of [-.4, .4]) c.box('metal_d', null, x, 0, -.1, .03, .45, .03);
+    c.box('wood', 'wood', 0, .12, -.18, .6, .03, .1);
+    c.cyl('metal_d', .45, 0, .3, .015, .6, 6); c.box('sign_b', 'sign_b', .45, .55, .3, .16, .16, .02);
+  },
+  metro(c, b) {
+    c.flat('pave', 0, .005, 0, 2, 2);
+    c.box('of_glassB', 'metal', 0, 0, -.2, 1.2, .45, .8); c.box('metal_d', 'metal_d', 0, .45, -.2, 1.4, .05, 1);
+    c.box('black', 'black', 0, -.2, .45, .7, .21, .5);
+    c.cyl('metal_d', .75, 0, .75, .02, .9, 6); c.box('sign_r', 'sign_r', .75, .95, .75, .26, .26, .04); c.box('white', 'white', .75, .95, .772, .14, .14, .005);
+    c.tree(-.75, .7, .7, .3);
+  },
   stadium(c, b) {
     c.flat('lot', 0, .004, 0, b.w, b.d);
     const w = b.w - .4, d = b.d - .4;

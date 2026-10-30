@@ -18,11 +18,11 @@ export const ROAD_ORDER = ['dirt', 'street', 'avenue', 'highway'];
 // per: hücre başına kişi (konut) ya da iş (diğerleri), seviyeye göre
 export const ZONES = {
   r1: { n: 'Konut', sub: 'az yoğun', i: '🏡', c: '#79d36a', k: 'R', maxL: 5, lots: [[1, 2], [2, 2], [1, 1], [2, 3]], per: [3, 4, 5, 6, 7], ms: 0 },
-  r2: { n: 'Konut', sub: 'yoğun', i: '🏢', c: '#2b9b3c', k: 'R', maxL: 5, lots: [[2, 2], [2, 3], [3, 3], [2, 4]], per: [10, 14, 19, 25, 32], ms: 1 },
+  r2: { n: 'Konut', sub: 'yoğun', i: '🏢', c: '#2b9b3c', k: 'R', maxL: 5, lots: [[2, 2], [2, 3], [3, 3], [2, 4], [3, 5], [4, 4]], per: [10, 14, 19, 25, 32], ms: 1 },
   c1: { n: 'Ticaret', sub: 'az yoğun', i: '🏪', c: '#69b2ff', k: 'C', maxL: 3, lots: [[1, 2], [2, 2], [1, 1]], per: [3, 4, 5], ms: 0 },
-  c2: { n: 'Ticaret', sub: 'yoğun', i: '🏬', c: '#2d6fd8', k: 'C', maxL: 3, lots: [[2, 3], [3, 3], [3, 4]], per: [7, 10, 13], ms: 2 },
-  o: { n: 'Ofis', sub: 'iş merkezi', i: '🏙️', c: '#b48af0', k: 'O', maxL: 3, lots: [[2, 2], [2, 3], [3, 3]], per: [9, 13, 18], ms: 2 },
-  i: { n: 'Sanayi', sub: 'fabrika, depo', i: '🏭', c: '#efbf3c', k: 'I', maxL: 3, lots: [[2, 3], [3, 3], [3, 4], [2, 2]], per: [3, 4, 5], ms: 0 },
+  c2: { n: 'Ticaret', sub: 'yoğun', i: '🏬', c: '#2d6fd8', k: 'C', maxL: 3, lots: [[2, 3], [3, 3], [3, 4], [4, 5]], per: [7, 10, 13], ms: 2 },
+  o: { n: 'Ofis', sub: 'iş merkezi', i: '🏙️', c: '#b48af0', k: 'O', maxL: 3, lots: [[2, 2], [2, 3], [3, 3], [3, 4]], per: [9, 13, 18], ms: 2 },
+  i: { n: 'Sanayi', sub: 'fabrika, depo', i: '🏭', c: '#efbf3c', k: 'I', maxL: 3, lots: [[2, 3], [3, 3], [3, 4], [2, 2], [4, 5], [3, 6]], per: [3, 4, 5], ms: 0 },
 };
 export const ZONE_ORDER = ['r1', 'r2', 'c1', 'c2', 'o', 'i'];
 
@@ -56,6 +56,9 @@ export const SVC = {
   cami: { n: 'Cami', i: '🕌', cat: 'culture', cost: 5000, up: 0.3, w: 3, d: 3, r: 20, val: 10, ms: 0 },
   kutup: { n: 'Kütüphane', i: '📚', cat: 'culture', cost: 3000, up: 0.5, w: 2, d: 2, r: 18, val: 7, ms: 1 },
   muze: { n: 'Müze', i: '🖼️', cat: 'culture', cost: 9000, up: 0.9, w: 4, d: 3, r: 35, val: 12, tour: 6, ms: 2 },
+  busdep: { n: 'Otobüs garajı', i: '🚌', cat: 'trans', cost: 5000, up: 0.8, w: 3, d: 3, ms: 0 },
+  busstop: { n: 'Otobüs durağı', i: '🚏', cat: 'trans', cost: 300, up: 0.05, w: 1, d: 1, r: 10, ms: 0 },
+  metro: { n: 'Metro istasyonu', i: 'Ⓜ️', cat: 'trans', cost: 12000, up: 2, w: 2, d: 2, r: 18, ms: 2 },
   stadium: { n: 'Stadyum', i: '🏟️', cat: 'park', cost: 15000, up: 2, w: 6, d: 5, r: 45, val: 14, ms: 3 },
 };
 
@@ -78,6 +81,17 @@ export const CATS = [
   { id: 'svc', n: 'Hizmet', i: '🏥' },
   { id: 'park', n: 'Park', i: '🌳' },
   { id: 'cult', n: 'Kültür', i: '🕌' },
+  { id: 'trans', n: 'Ulaşım', i: '🚌' },
   { id: 'land', n: 'Arazi', i: '🗺️' },
   { id: 'bull', n: 'Yık', i: '🧨' },
 ];
+
+export const POLICIES = {
+  geri: { n: '♻️ Geri dönüşüm', d: 'Çöp toplama alanı %50 büyür', cost: 1.5 },
+  yesil: { n: '🌿 Yeşil şehir', d: 'Park ve kültür etkisi %50 artar', cost: 1.5 },
+  filtre: { n: '🏭 Sanayi filtreleri', d: 'Kirlilik yarıya iner, sanayi geliri %10 azalır', cost: 1 },
+  turizm: { n: '📸 Turizm tanıtımı', d: 'Müze ve stadyum turist geliri ikiye katlanır', cost: 2 },
+  toplu: { n: '🎫 Ücretsiz toplu taşıma', d: 'Toplu taşıma olan mahallelerde mutluluk +4', cost: 2.5 },
+  gece: { n: '🌃 Gece hayatı', d: 'Ticaret talebi artar, evlerde mutluluk -2', cost: 0 },
+  burs: { n: '🎓 Eğitim bursu', d: 'Okulların etki alanı %30 büyür', cost: 2.5 },
+};

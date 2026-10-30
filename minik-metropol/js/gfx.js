@@ -52,6 +52,27 @@ export function buildWater() {
   waterMesh = mk(wp, waterMat); sandMesh = mk(sp, sandMat);
 }
 
+// ---------- deniz ve uzak dağlar ----------
+let seaMesh = null;
+export function buildSea(on) {
+  if (seaMesh) { scene.remove(seaMesh); seaMesh = null; }
+  if (!on) return;
+  seaMesh = new THREE.Mesh(new THREE.PlaneGeometry(700, 300).rotateX(-Math.PI / 2), waterMat);
+  seaMesh.position.set(0, .011, WH + 150 - 6); scene.add(seaMesh);
+}
+{
+  const mm = new THREE.MeshStandardMaterial({ color: 0x5f7f68, roughness: 1, flatShading: true, fog: false });
+  const snow = new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 1, flatShading: true, fog: false });
+  const geo = new THREE.ConeGeometry(1, 1, 7, 1);
+  let sd = 99; const r = () => { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; return sd / 4294967296; };
+  for (let k = 0; k < 46; k++) {
+    const a = k / 46 * Math.PI * 2 + r() * .1; if (Math.sin(a) > .55) continue; // güneyde deniz
+    const R0 = 230 + r() * 50, h = 28 + r() * 40, w = 35 + r() * 30;
+    const m = new THREE.Mesh(geo, mm); m.scale.set(w, h, w * (.8 + r() * .4)); m.position.set(Math.cos(a) * R0, h / 2 - 2, Math.sin(a) * R0); m.rotation.y = r() * 6; scene.add(m);
+    if (h > 50) { const s2 = new THREE.Mesh(geo, snow); s2.scale.set(w * .28, h * .28, w * .28); s2.position.set(m.position.x, h - h * .14 - 2, m.position.z); s2.rotation.y = m.rotation.y; scene.add(s2); }
+  }
+}
+
 // ---------- yollar ----------
 const roadMats = {}; for (const t of Object.keys(ROADS)) roadMats[t] = new THREE.MeshStandardMaterial({ map: roadTexture(t), roughness: .92, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
 const discMat = new THREE.MeshStandardMaterial({ color: 0x3e4147, roughness: .92, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
@@ -297,6 +318,20 @@ export const constructing = id => cons.has(id);
 // ---------- bilgi görünümü ----------
 const ovIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(.28, .28, .06, 16), new THREE.MeshBasicMaterial({ depthTest: false }), 3000);
 ovIM.count = 0; ovIM.renderOrder = 30; ovIM.frustumCulled = false; scene.add(ovIM);
+const metroGroup = new THREE.Group(); scene.add(metroGroup);
+export function buildMetro(show) {
+  for (const c of [...metroGroup.children]) { metroGroup.remove(c); c.geometry.dispose(); }
+  const st = [...R.blds.values()].filter(b => b.svc === 'metro'); if (st.length < 2) return;
+  // en kısa bağlantı ağacı
+  const inT = new Set([st[0].id]), pts = [];
+  while (inT.size < st.length) {
+    let best = null; for (const a of st) if (inT.has(a.id)) for (const b of st) if (!inT.has(b.id)) { const d = Math.hypot(a.x - b.x, a.z - b.z); if (!best || d < best.d) best = { a, b, d }; }
+    inT.add(best.b.id); pts.push(best.a.x, .25, best.a.z, best.b.x, .25, best.b.z);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+  const l = new THREE.LineSegments(g, new THREE.LineDashedMaterial({ color: 0xc2185b, dashSize: 1, gapSize: .6, transparent: true, opacity: show ? .95 : .35, depthTest: false }));
+  l.computeLineDistances(); l.renderOrder = 25; metroGroup.add(l);
+}
 export function buildOverlay(colorFn) {
   let n = 0;
   if (colorFn) for (const b of R.blds.values()) {
@@ -316,7 +351,7 @@ const leafIM = new THREE.InstancedMesh(leafGeo, new THREE.MeshStandardMaterial({
 const pineIM = new THREE.InstancedMesh(pineGeo, new THREE.MeshStandardMaterial({ roughness: .9, flatShading: true }), MAXT);
 for (const im of [trunkIM, leafIM, pineIM]) { im.castShadow = true; im.receiveShadow = true; im.count = 0; scene.add(im); }
 const outsideTrees = [];
-{ let s = 4242; const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; for (let k = 0; k < 2600; k++) { const x = (r() - .5) * 420, z = (r() - .5) * 420; if (Math.abs(x) < WH + 1 && Math.abs(z) < WH + 1) continue; if (r() < .55) outsideTrees.push([x, z, 1 + r() * .8, r() < .4, r()]); } }
+{ let s = 4242; const r = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; for (let k = 0; k < 2600; k++) { const x = (r() - .5) * 420, z = (r() - .5) * 420; if (Math.abs(x) < WH + 1 && Math.abs(z) < WH + 1) continue; if (z > WH - 20) continue; if (r() < .55) outsideTrees.push([x, z, 1 + r() * .8, r() < .4, r()]); } }
 export function buildTrees() {
   let nt = 0, nl = 0, np = 0;
   const put = (x, z, sc, pine, h) => {
@@ -387,6 +422,8 @@ const carIM = new THREE.InstancedMesh(carGeo, new THREE.MeshStandardMaterial({ r
 const cabIM = new THREE.InstancedMesh(cabGeo, new THREE.MeshStandardMaterial({ color: 0x1d2a36, roughness: .2, metalness: .5 }), MAXC);
 carIM.castShadow = true; carIM.count = cabIM.count = 0; scene.add(carIM, cabIM);
 carIM.frustumCulled = cabIM.frustumCulled = false;
+const sirIM = new THREE.InstancedMesh(new THREE.BoxGeometry(.14, .04, .06).translate(0, .27, 0), new THREE.MeshBasicMaterial(), 40);
+sirIM.count = 0; sirIM.frustumCulled = false; scene.add(sirIM);
 const CARCOL = ['#c0392b', '#f1c40f', '#2e86de', '#ecf0f1', '#27ae60', '#34495e', '#e67e22', '#7f8c8d', '#ffffff', '#1e272e'];
 let cars = [];
 function laneOff(t, lane) { const rt = ROADS[t]; return rt.lanes === 1 ? rt.w * .2 : rt.w * (lane ? .36 : .2); }
@@ -404,9 +441,31 @@ function spawnCar() {
   const truck = Math.random() < .12, bus = !truck && Math.random() < .06;
   cars.push({ path, i: 0, t: 0, lane: Math.random() < .5 ? 1 : 0, col: truck ? '#dfe4ea' : bus ? '#f6c90e' : CARCOL[(Math.random() * CARCOL.length) | 0], sc: truck ? 1.35 : bus ? 1.6 : 1, ry: null, x: 0, z: 0 });
 }
+export function spawnSpecial(fromBld, toBld, kind) {
+  const A = R.blds.get(fromBld), B = R.blds.get(toBld); if (!A || !B || !A.seg || !B.seg) return;
+  const sa = R.segs.get(A.seg), sb = R.segs.get(B.seg); if (!sa || !sb) return;
+  const path = findPath(sa.a, sb.b) || findPath(sa.a, sb.a); if (!path || path.length < 2) return;
+  const K = { fire: ['#d32f2f', 1.3], amb: ['#f5f5f5', 1.25], pol: ['#ffffff', 1], bus: ['#1565c0', 1.6] }[kind];
+  cars.push({ path, i: 0, t: 0, lane: 0, col: K[0], sc: K[1], ry: null, x: 0, z: 0, kind, fast: kind !== 'bus' });
+}
+let busT = 0;
 export function updTraffic(dt) {
-  const target = Math.min(MAXC, Math.floor((R.st.pop || 0) / 12) + 6, Math.floor(R.segs.size * 1.5));
+  const tc = R.st.transitCov || 0;
+  const target = Math.min(MAXC, Math.floor((R.st.pop || 0) / 12 * (1 - tc * .4)) + 6, Math.floor(R.segs.size * 1.5));
   if (cars.length < target && Math.random() < dt * 4) spawnCar();
+  // otobüsler: duraklar arası
+  busT -= dt;
+  if (busT <= 0) {
+    busT = 2;
+    const stops = [...R.blds.values()].filter(b => b.svc === 'busstop' && b.seg && R.conn.has(b.seg));
+    const dep = [...R.blds.values()].find(b => b.svc === 'busdep' && R.conn.has(b.seg));
+    const nb = cars.filter(c => c.kind === 'bus').length;
+    if (dep && stops.length >= 2 && nb < Math.min(24, stops.length * 1.5)) { const a = stops[(Math.random() * stops.length) | 0], b = stops[(Math.random() * stops.length) | 0]; if (a !== b) spawnSpecial(a.id, b.id, 'bus'); }
+    // ambulans ve polis devriyesi
+    const zb = [...R.blds.values()].filter(b => !b.svc && b.seg && R.conn.has(b.seg));
+    if (zb.length && Math.random() < .25) { const h = [...R.blds.values()].filter(b => (b.svc === 'hosp' || b.svc === 'clinic') && R.conn.has(b.seg)); if (h.length) spawnSpecial(h[(Math.random() * h.length) | 0].id, zb[(Math.random() * zb.length) | 0].id, 'amb'); }
+    if (zb.length && Math.random() < .3) { const p = [...R.blds.values()].filter(b => b.svc === 'police' && R.conn.has(b.seg)); if (p.length) spawnSpecial(p[(Math.random() * p.length) | 0].id, zb[(Math.random() * zb.length) | 0].id, 'pol'); }
+  }
   let n = 0;
   for (let k = cars.length - 1; k >= 0; k--) {
     const c = cars[k];
@@ -414,20 +473,23 @@ export function updTraffic(dt) {
     const s = a && b ? segBetween(a.id, b.id) : null;
     if (!s) { cars.splice(k, 1); continue; }
     const L = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-    c.t += dt * ROADS[s.t].speed * .9 / L;
+    c.t += dt * ROADS[s.t].speed * (c.fast ? 1.5 : c.kind === 'bus' ? .75 : .9) / L;
     if (c.t >= 1) { c.t = 0; c.i++; if (c.i >= c.path.length - 1) { cars.splice(k, 1); continue; } continue; }
     const ux = (b.x - a.x) / L, uz = (b.z - a.z) / L, off = laneOff(s.t, c.lane);
     c.x = a.x + (b.x - a.x) * c.t - uz * off; c.z = a.z + (b.z - a.z) * c.t + ux * off; c.y = (a.h || 0) + ((b.h || 0) - (a.h || 0)) * c.t;
     const ry = Math.atan2(ux, uz);
     if (c.ry === null) c.ry = ry; let d = ry - c.ry; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; c.ry += d * Math.min(1, dt * 8);
   }
+  let ns = 0; const flash = (performance.now() / 180 | 0) % 2;
   for (const c of cars) {
     if (n >= MAXC) break;
+    if ((c.kind === 'fire' || c.kind === 'amb' || c.kind === 'pol') && ns < 40) { _q.setFromAxisAngle(_Y, c.ry || 0); _mt.compose(_p.set(c.x, .03 + (c.y || 0), c.z), _q, _s.set(1, 1, 1)); sirIM.setMatrixAt(ns, _mt); sirIM.setColorAt(ns, _c.set(flash ? (c.kind === 'fire' ? '#ffeb3b' : '#ff1744') : '#2979ff')); ns++; }
     _q.setFromAxisAngle(_Y, c.ry || 0); _mt.compose(_p.set(c.x, .03 + (c.y || 0), c.z), _q, _s.set(c.sc > 1.2 ? 1.1 : 1, c.sc > 1.2 ? 1.5 : 1, c.sc));
     carIM.setMatrixAt(n, _mt); carIM.setColorAt(n, _c.set(c.col));
     if (c.sc > 1.2) _mt.makeScale(0, 0, 0); cabIM.setMatrixAt(n, _mt); n++;
   }
   _s.set(1, 1, 1);
+  sirIM.count = ns; sirIM.instanceMatrix.needsUpdate = true; if (sirIM.instanceColor) sirIM.instanceColor.needsUpdate = true;
   carIM.count = cabIM.count = n; carIM.instanceMatrix.needsUpdate = cabIM.instanceMatrix.needsUpdate = true; if (carIM.instanceColor) carIM.instanceColor.needsUpdate = true;
 }
 export function clearTraffic() { cars = []; }
@@ -487,6 +549,14 @@ const softTex = softTexture();
 const smoke = [];
 for (let k = 0; k < 140; k++) { const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: softTex, transparent: true, depthWrite: false })); sp.visible = false; scene.add(sp); smoke.push({ sp, life: 0 }); }
 function puff(x, y, z, col, life, vx, vy, s0, grow) { const p = smoke.find(s => s.life <= 0); if (!p) return; p.life = p.max = life; p.sp.visible = true; p.sp.position.set(x, y, z); p.vx = vx; p.vy = vy; p.s0 = s0; p.grow = grow; p.sp.material.color.set(col); }
+const fires = new Map();
+const flameMat = new THREE.SpriteMaterial({ map: softTex, color: 0xff7a1a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+export function setFire(id, on) {
+  if (!on) { const f = fires.get(id); if (f) { scene.remove(f); fires.delete(id); } return; }
+  const b = R.blds.get(id); if (!b || fires.has(id)) return;
+  const g = new THREE.Group(); for (let k = 0; k < 5; k++) { const sp = new THREE.Sprite(flameMat); sp.userData.o = [(Math.random() - .5) * b.w * .6, Math.random() * .4, (Math.random() - .5) * b.d * .6]; g.add(sp); }
+  g.position.set(b.x, (bcache.get(id)?.H || .6) * .7, b.z); g.userData.id = id; scene.add(g); fires.set(id, g);
+}
 export function dust(x, z) { for (let k = 0; k < 8; k++) puff(x + (Math.random() - .5) * 1.2, .2, z + (Math.random() - .5) * 1.2, 0xb8a888, .9 + Math.random() * .4, (Math.random() - .5) * .4, .4, .5, .8); }
 export function updFx(dt, simDt, tm) {
   for (const e of emitters) { const b = R.blds.get(e.id); if (b && !b.svc && !(b.pow && b.conn)) continue; if (Math.random() < simDt * 2) puff(e.p[0], e.p[1], e.p[2], 0x9a9a9a, 3 + Math.random(), .25, .45, .3, 1.2); }
@@ -496,6 +566,11 @@ export function updFx(dt, simDt, tm) {
     const s = p.s0 + a * p.grow; p.sp.scale.set(s, s, 1); p.sp.material.opacity = (1 - a) * .55;
   }
   for (const r of rotors) r.rotation.z += dt * 2.2;
+  for (const [id, g] of fires) {
+    if (!R.blds.has(id) || !R.blds.get(id).fire) { scene.remove(g); fires.delete(id); continue; }
+    g.children.forEach((sp, k) => { const o = sp.userData.o, f = .5 + .5 * Math.sin(tm / 90 + k * 1.7); sp.position.set(o[0], o[1] + f * .2, o[2]); sp.scale.set(.5 + f * .4, .7 + f * .5, 1); });
+    if (Math.random() < dt * 4) puff(g.position.x, g.position.y + .5, g.position.z, 0x333333, 3, .2, .6, .4, 1.6);
+  }
   for (const c of clouds) { c.position.x += c.userData.v * dt; if (c.position.x > 160) c.position.x = -160; }
   // trafik ışıkları: A ve B grupları dönüşümlü
   const ph = Math.floor(tm / 7000) % 2;
@@ -626,5 +701,5 @@ export function setQuality(hi) {
 }
 export function resetWorldGfx() {
   for (const ch of chunks.values()) { scene.remove(ch.group); ch.group.traverse(o => o.geometry && o.geometry.dispose()); }
-  chunks.clear(); bcache.clear(); cars = []; people = []; for (const c of cons.values()) scene.remove(c.group); cons.clear(); for (const sp of icons.values()) scene.remove(sp); icons.clear();
+  chunks.clear(); bcache.clear(); cars = []; people = []; for (const g of fires.values()) scene.remove(g); fires.clear(); for (const c of cons.values()) scene.remove(c.group); cons.clear(); for (const sp of icons.values()) scene.remove(sp); icons.clear();
 }
