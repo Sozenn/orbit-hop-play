@@ -8,4 +8,4 @@ Sesinle oynanan araba oyunu.
 
 Mikrofon izni ister. Mikrofon yoksa ekrandaki KALIN / İNCE düğmeleriyle de oynanır.
 
-Geliştirici: Safa Özen · mybooks5096@gmail.com · Sürüm 1.0
+Geliştirici: Safa Özen · mybooks5096@gmail.com · Sürüm 1.1

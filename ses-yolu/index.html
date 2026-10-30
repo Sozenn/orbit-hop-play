@@ -60,7 +60,7 @@
     <b class="k">Kalın ses</b> (“Ooo”) → araba <b class="k">yassılaşır</b>, alçak geniş delikten geçer.<br>
     <b class="i">İnce ses</b> (“İiii”) → araba <b class="i">incelir</b>, dar uzun delikten geçer.<br>
     <b>Sessiz kal</b> → araba normal boyda, kare delikten geçer.<br>
-    3 kez çarparsan oyun biter.
+    Ses kesilse bile araba şeklini yarım saniye korur.<br>5 canın var.
   </div>
   <div class="best" id="bestTxt"></div>
 </div>
@@ -94,7 +94,7 @@
 <script>
 (()=>{
 'use strict';
-const VERSION='1.0';
+const VERSION='1.1';
 const $=id=>document.getElementById(id);
 const cv=$('c'), ctx=cv.getContext('2d');
 let W=0,H=0,DPR=1;
@@ -142,7 +142,7 @@ function detectPitch(){
   const n=buf.length;let rms=0;
   for(let i=0;i<n;i++) rms+=buf[i]*buf[i];
   rms=Math.sqrt(rms/n);
-  if(rms<0.012) return {f:-1,rms};
+  if(rms<0.008) return {f:-1,rms};
   const sr=actx.sampleRate;
   const minLag=Math.floor(sr/900), maxLag=Math.min(Math.floor(sr/65),n>>1);
   if(!yinBuf||yinBuf.length!==maxLag+1) yinBuf=new Float32Array(maxLag+1);
@@ -155,7 +155,7 @@ function detectPitch(){
   }
   let tau=-1;
   for(let t=minLag;t<maxLag;t++){
-    if(yinBuf[t]<0.18){
+    if(yinBuf[t]<0.25){
       while(t+1<maxLag&&yinBuf[t+1]<yinBuf[t]) t++;
       tau=t;break;
     }
@@ -205,25 +205,34 @@ const GATES={
 };
 const WALL_HALF=2.6, WALL_H=2.7, WALL_D=0.55;
 let state='menu', mode='mic';
-let gates=[],parts=[],score=0,lives=3,speed=12,dist=0,nextGate=0;
-let shape=0,shapeTarget=0,curHz=-1,shake=0,flash=0,flashCol='#f00';
+let gates=[],parts=[],score=0,lives=5,speed=8,dist=0,nextGate=0;
+let zone=0,holdT=0,zoneHist=[];
+let rawShape=null,clock=0,shape=0,shapeTarget=0,curHz=-1,shake=0,flash=0,flashCol='#f00';
 let lastT=0;
 
 function carDims(s){
   if(s<0){const t=-s;return {w:1.5+1.3*t,h:1.0-0.55*t};}
   return {w:1.5-0.9*s,h:1.0+1.0*s};
 }
+const NEED={low:-1,narrow:1,mid:0};
+function passes(type){
+  // son 0.35 sn içinde doğru şekil tutulduysa geçer
+  return zone===NEED[type]||zoneHist.some(h=>h.z===NEED[type]);
+}
 function fits(type,s){
   const g=GATES[type],d=carDims(s);
   return d.w<=g.w&&d.h<=g.h;
 }
 function newGame(){
-  gates=[];parts=[];score=0;lives=3;speed=12;dist=0;nextGate=8;shape=0;shake=0;flash=0;
+  gates=[];parts=[];score=0;lives=5;speed=8;dist=0;nextGate=6;spawned=0;zone=0;holdT=0;zoneHist=[];shape=0;shake=0;flash=0;
   updHud();
 }
+let spawned=0;
 function spawnGate(z){
+  spawned++;
+  if(spawned<=3){gates.push({type:['low','narrow','low'][spawned-1],z,checked:false,ok:false,alpha:1});return;}
   let pool=['low','narrow'];
-  if(score>=4) pool.push('mid');
+  if(score>=10) pool.push('mid');
   let t=pool[Math.floor(Math.random()*pool.length)];
   const last=gates.length?gates[gates.length-1].type:null;
   if(t===last&&Math.random()<0.5) t=pool[Math.floor(Math.random()*pool.length)];
@@ -231,7 +240,7 @@ function spawnGate(z){
 }
 function updHud(){
   $('score').textContent=score;
-  $('lives').textContent='❤️'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,3-lives));
+  $('lives').textContent='❤️'.repeat(Math.max(0,lives))+'🖤'.repeat(Math.max(0,5-lives));
 }
 function showMsg(t,c){const m=$('msg');m.textContent=t;m.style.color=c||'#fff';m.style.opacity=1;clearTimeout(showMsg.t);showMsg.t=setTimeout(()=>m.style.opacity=0,650);}
 
@@ -240,25 +249,37 @@ function update(dt){
   if(mode==='mic'&&micOK){
     const r=detectPitch();
     curHz=smoothPitch(r.f);
-    shapeTarget=curHz>0?pitchToShape(curHz):0;
-  }else{curHz=-1;shapeTarget=0;}
-  if(touchK||keyK) shapeTarget=-1;
-  if(touchI||keyI) shapeTarget=1;
-  shape+=(shapeTarget-shape)*Math.min(1,dt*10);
+    rawShape=curHz>0?pitchToShape(curHz):null;
+  }else{curHz=-1;rawShape=null;}
+  if(touchK||keyK) rawShape=-1;
+  if(touchI||keyI) rawShape=1;
+  // 3 bölge: kalın / normal / ince (geniş ve bağışlayıcı eşikler)
+  let z=null;
+  if(rawShape!==null){
+    if(rawShape<-0.15) z=-1; else if(rawShape>0.15) z=1; else z=0;
+  }
+  if(z!==null&&z!==0){zone=z;holdT=0.5;}        // ses kesilince şekli 0.5 sn koru
+  else if(z===0){holdT-=dt*2; if(holdT<=0) zone=0;}
+  else {holdT-=dt; if(holdT<=0) zone=0;}
+  shapeTarget=zone;
+  shape+=(shapeTarget-shape)*Math.min(1,dt*14);
+  zoneHist.push({t:clock,z:zone});
+  while(zoneHist.length&&zoneHist[0].t<clock-0.35) zoneHist.shift();
+  clock+=dt;
 
   dist+=speed*dt;
   for(const g of gates) g.z-=speed*dt;
   nextGate-=speed*dt;
   if(nextGate<=0){
     spawnGate(70);
-    const gap=Math.max(15,30-score*0.6)+Math.random()*6;
+    const gap=Math.max(24,36-score*0.5)+Math.random()*8;
     nextGate=gap;
   }
   for(const g of gates){
     if(!g.checked&&g.z<=CARZ+CARD*0.5){
       g.checked=true;
-      if(fits(g.type,shape)){
-        g.ok=true;score++;speed=Math.min(22,speed+0.4);updHud();
+      if(passes(g.type)){
+        g.ok=true;score++;speed=Math.min(16,speed+0.3);updHud();
         flash=0.25;flashCol='#22c55e';
         if(score%5===0) showMsg(score+'!','#fde047');
       }else{
@@ -419,7 +440,26 @@ function drawScene(t){
   ctx.globalAlpha=1;
   ctx.restore();
   if(flash>0){ctx.fillStyle=flashCol;ctx.globalAlpha=flash*0.5;ctx.fillRect(0,0,W,H);ctx.globalAlpha=1;}
-  if(state==='play'||state==='pause') drawMeter();
+  if(state==='play'||state==='pause'){drawMeter();drawHint();}
+}
+const HINT={low:['KALIN SES','Ooooo 🔉','#c4b5fd'],narrow:['İNCE SES','İiiiii 🔊','#fda4af'],mid:['SESSİZ KAL','🤫','#fde047']};
+function drawHint(){
+  let g=null;for(const q of gates){if(!q.checked&&(!g||q.z<g.z))g=q;}
+  if(!g||g.z>55) return;
+  const [t1,t2,c]=HINT[g.type];
+  const y=Math.max(118,H*0.13)+64;
+  const pulse=1+0.06*Math.sin(clock*12);
+  const fs=Math.min(W*0.1,40)*pulse;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.font='900 '+fs+'px -apple-system,Arial';
+  ctx.lineWidth=fs*0.16;ctx.strokeStyle='rgba(0,0,0,.65)';ctx.strokeText(t1,W/2,y);
+  ctx.fillStyle=c;ctx.fillText(t1,W/2,y);
+  ctx.font='800 '+fs*0.5+'px -apple-system,Arial';
+  ctx.strokeText(t2,W/2,y+fs*0.75);ctx.fillStyle='#fff';ctx.fillText(t2,W/2,y+fs*0.75);
+  const ok=zone===NEED[g.type];
+  ctx.font='900 '+fs*0.45+'px -apple-system,Arial';
+  ctx.fillStyle=ok?'#4ade80':'rgba(255,255,255,.5)';
+  ctx.fillText(ok?'✔ TAMAM, böyle devam!':'',W/2,y+fs*1.35);
 }
 function drawMeter(){
   const w=Math.min(W*0.62,300),h=16,x=(W-w)/2,y=Math.max(118,H*0.13)+0;
@@ -428,9 +468,8 @@ function drawMeter(){
   g.addColorStop(0,'#7c3aed');g.addColorStop(0.5,'#fde047');g.addColorStop(1,'#e11d48');
   ctx.fillStyle=g;ctx.fillRect(x,y,w,h);
   // eşik bölgeleri
-  ctx.fillStyle='rgba(0,0,0,.35)';
-  ctx.fillRect(x+w*0.23,y,w*0.15,h);ctx.fillRect(x+w*0.62,y,w*0.18,h);
-  const mx=x+(shape+1)/2*w;
+  ctx.fillStyle='rgba(0,0,0,.45)';ctx.fillRect(x+w*0.425-1,y,2,h);ctx.fillRect(x+w*0.575-1,y,2,h);
+  const mx=x+((rawShape===null?0:rawShape)+1)/2*w;
   ctx.fillStyle='#fff';ctx.beginPath();ctx.moveTo(mx,y-4);ctx.lineTo(mx-8,y-14);ctx.lineTo(mx+8,y-14);ctx.fill();
   ctx.fillRect(mx-2,y-2,4,h+4);
   ctx.font='800 11px -apple-system,Arial';ctx.textBaseline='top';
