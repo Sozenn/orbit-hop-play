@@ -72,7 +72,8 @@
   <div id="calHz">– Hz</div>
   <div id="calBar"><div id="calFill"></div></div>
   <p class="small" id="calInfo">Telefonu yüzüne yakın tut. Sessiz bir ortam daha iyi sonuç verir.</p>
-  <button class="btn hide" id="calDone">Tamam</button>
+  <button class="btn main hide" id="calDone">Tamam, oyna!</button>
+  <button class="btn hide" id="calRetry">Tekrar Ayarla</button>
 </div>
 
 <!-- DURAKLAT -->
@@ -94,7 +95,7 @@
 <script>
 (()=>{
 'use strict';
-const VERSION='1.1';
+const VERSION='1.2';
 const $=id=>document.getElementById(id);
 const cv=$('c'), ctx=cv.getContext('2d');
 let W=0,H=0,DPR=1;
@@ -112,12 +113,12 @@ const store={
   set(k,v){try{localStorage.setItem('sesyolu_'+k,JSON.stringify(v))}catch(e){}}
 };
 let best=store.get('best',0);
-let cal=store.get('cal',{low:120,high:300});
+let cal=store.get('cal2',null); // {low,high,bLow,bHigh}
 function showBest(){$('bestTxt').textContent=best>0?('En iyi skor: '+best):'';}
 showBest();
 
 // ---------- Mikrofon & perde algılama ----------
-let actx=null, analyser=null, buf=null, micOK=false;
+let actx=null, analyser=null, buf=null, fbuf=null, micOK=false;
 async function initMic(){
   if(micOK) return true;
   try{
@@ -126,7 +127,8 @@ async function initMic(){
     const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}});
     const src=actx.createMediaStreamSource(stream);
     analyser=actx.createAnalyser();
-    analyser.fftSize=2048;
+    analyser.fftSize=2048;analyser.smoothingTimeConstant=0.4;
+    fbuf=new Float32Array(analyser.frequencyBinCount);
     src.connect(analyser);
     buf=new Float32Array(analyser.fftSize);
     micOK=true;return true;
@@ -136,6 +138,15 @@ async function initMic(){
   }
 }
 let yinBuf=null;
+// Tını: tiz bant (1.4-4 kHz) / bas bant (150-900 Hz) enerji oranı, dB
+function brightness(){
+  analyser.getFloatFrequencyData(fbuf);
+  const bw=actx.sampleRate/analyser.fftSize;
+  let lo=1e-12,hi=1e-12;
+  for(let i=Math.floor(150/bw);i<=Math.ceil(900/bw);i++) lo+=Math.pow(10,fbuf[i]/10);
+  for(let i=Math.floor(1400/bw);i<=Math.ceil(4000/bw);i++) hi+=Math.pow(10,fbuf[i]/10);
+  return 10*Math.log10(hi/lo);
+}
 function detectPitch(){
   if(!analyser) return {f:-1,rms:0};
   analyser.getFloatTimeDomainData(buf);
@@ -164,7 +175,7 @@ function detectPitch(){
   const a=yinBuf[tau-1],b=yinBuf[tau],c=yinBuf[tau+1];
   const den=a+c-2*b;
   const bt=den!==0?tau+(a-c)/(2*den):tau;
-  return {f:sr/bt,rms};
+  return {f:sr/bt,rms,b:brightness()};
 }
 const hist=[];
 function smoothPitch(f){
@@ -172,9 +183,22 @@ function smoothPitch(f){
   hist.push(f);if(hist.length>5) hist.shift();
   const s=[...hist].sort((x,y)=>x-y);return s[s.length>>1];
 }
+let bEma=null;
+function voiceToShape(f,b){
+  if(!cal) cal={low:120,high:240,bLow:-22,bHigh:-6};
+  bEma=bEma==null?b:bEma*0.6+b*0.4;
+  const bMid=(cal.bLow+cal.bHigh)/2, bHalf=Math.max(2.5,(cal.bHigh-cal.bLow)/2);
+  const bN=(bEma-bMid)/(bHalf*0.8);
+  let v=bN;
+  if(cal.high>cal.low*1.1){
+    const pN=pitchToShape(f);
+    v=0.6*bN+0.4*pN;
+  }
+  return Math.max(-1,Math.min(1,v));
+}
 function pitchToShape(f){
   const lo=Math.log2(cal.low), hi=Math.log2(cal.high);
-  const mid=(lo+hi)/2, half=Math.max(0.3,(hi-lo)/2);
+  const mid=(lo+hi)/2, half=Math.max(0.1,(hi-lo)/2);
   return Math.max(-1,Math.min(1,(Math.log2(f)-mid)/(half*0.8)));
 }
 
@@ -207,7 +231,7 @@ const WALL_HALF=2.6, WALL_H=2.7, WALL_D=0.55;
 let state='menu', mode='mic';
 let gates=[],parts=[],score=0,lives=5,speed=8,dist=0,nextGate=0;
 let zone=0,holdT=0,zoneHist=[];
-let rawShape=null,clock=0,shape=0,shapeTarget=0,curHz=-1,shake=0,flash=0,flashCol='#f00';
+let lastB=0,rawShape=null,clock=0,shape=0,shapeTarget=0,curHz=-1,shake=0,flash=0,flashCol='#f00';
 let lastT=0;
 
 function carDims(s){
@@ -248,8 +272,8 @@ function update(dt){
   // ses → şekil
   if(mode==='mic'&&micOK){
     const r=detectPitch();
-    curHz=smoothPitch(r.f);
-    rawShape=curHz>0?pitchToShape(curHz):null;
+    curHz=smoothPitch(r.f);lastB=r.b;
+    rawShape=curHz>0?voiceToShape(curHz,lastB):null;if(curHz<=0)bEma=null;
   }else{curHz=-1;rawShape=null;}
   if(touchK||keyK) rawShape=-1;
   if(touchI||keyI) rawShape=1;
@@ -495,7 +519,7 @@ async function start(m){
   mode=m;
   if(m==='mic'){
     const ok=await initMic();if(!ok) return;
-    if(!store.get('calDone',false)){await runCalib();}
+    if(!cal){await runCalib();}
   }
   newGame();state='play';show(null);lastT=performance.now();
   showMsg(m==='mic'?'Hadi, ses ver!':'Düğmelere bas!','#fde047');
@@ -523,42 +547,61 @@ $('menuBtn').onclick=$('menuBtn2').onclick=()=>{state='menu';gates=[];parts=[];s
 
 // ---------- Kalibrasyon ----------
 function wait(ms){return new Promise(r=>setTimeout(r,ms));}
+function med(a){if(a.length<6)return null;a=[...a].sort((x,y)=>x-y);return a[a.length>>1];}
 async function record(label,ms){
   $('calText').innerHTML=label;$('calFill').style.width='0%';
-  const vals=[];const t0=performance.now();
+  const fs=[],bs=[];const t0=performance.now();
   return new Promise(res=>{
     function step(){
       const el=performance.now()-t0;
       const r=detectPitch();
-      if(r.f>0){vals.push(r.f);$('calHz').textContent=Math.round(r.f)+' Hz';}
-      else $('calHz').textContent='– Hz';
+      if(r.f>0){fs.push(r.f);bs.push(r.b);$('calHz').textContent='🎤 duyuyorum';}
+      else $('calHz').textContent='…';
       $('calFill').style.width=Math.min(100,el/ms*100)+'%';
       if(el<ms) requestAnimationFrame(step);
-      else{vals.sort((a,b)=>a-b);res(vals.length>8?vals[vals.length>>1]:-1);}
+      else res({f:med(fs),b:med(bs)});
     }
     step();
   });
 }
 async function runCalib(){
-  const prev=state;state='calib';show('calib');$('calDone').classList.add('hide');
-  $('calInfo').textContent='Telefonu yüzüne yakın tut. Sessiz bir ortam daha iyi sonuç verir.';
-  $('calText').textContent='Hazırlan…';await wait(1200);
-  const low=await record('<span style="color:#a78bfa">KALIN</span> sesle uzun bir<br>“Ooooo” de',2600);
-  $('calText').textContent='Güzel! Şimdi…';await wait(900);
-  const high=await record('<span style="color:#fb7185">İNCE</span> sesle uzun bir<br>“İiiiii” de',2600);
-  let txt;
-  if(low>0&&high>0&&high>low*1.35){
-    cal={low,high};store.set('cal',cal);store.set('calDone',true);
-    txt='Kalın: '+Math.round(low)+' Hz  •  İnce: '+Math.round(high)+' Hz';
-    $('calText').textContent='Ayarlandı ✅';
-  }else{
-    store.set('calDone',true);
-    txt='Ses net alınamadı, varsayılan ayar kullanılıyor. Menüden tekrar deneyebilirsin.';
-    $('calText').textContent='Olmadı 😅';
+  const prev=state;state='calib';show('calib');
+  let ok=false;
+  while(!ok){
+    $('calDone').classList.add('hide');$('calRetry').classList.add('hide');
+    $('calInfo').textContent='Telefonu ağzına 20-30 cm uzaklıkta tut. Sessiz bir ortam daha iyi sonuç verir.';
+    $('calText').textContent='Hazırlan…';$('calHz').textContent='';await wait(1200);
+    const L=await record('<span style="color:#a78bfa">KALIN</span> ve tok bir sesle<br>“Ooooo” de',2800);
+    $('calText').textContent='Güzel! Şimdi…';$('calHz').textContent='';await wait(900);
+    const Hh=await record('<span style="color:#fb7185">İNCE</span>, cırtlak bir sesle<br>“İiiiii” de',2800);
+    if(L.f&&Hh.f&&L.b!=null&&Hh.b!=null&&(Hh.b-L.b>3||Hh.f>L.f*1.15)){
+      cal={low:L.f,high:Math.max(Hh.f,L.f*1.01),bLow:L.b,bHigh:Math.max(Hh.b,L.b+0.5)};
+      store.set('cal2',cal);ok=true;
+      $('calText').textContent='Ayarlandı ✅ Şimdi dene:';
+      $('calInfo').textContent='Ooo ve İii diyerek dene. Yanlış algılıyorsa “Tekrar Ayarla”ya bas.';
+    }else{
+      $('calText').textContent='Olmadı 😅';
+      $('calInfo').textContent=(!L.f||!Hh.f)?'Sesini yeterince duyamadım. Biraz daha yüksek sesle dene.':'İki ses birbirine çok benziyor. Ooo’yu daha kalın, İii’yi daha ince söyle.';
+      $('calRetry').classList.remove('hide');
+      await new Promise(r=>{$('calRetry').onclick=r;});
+      continue;
+    }
+    // canlı test
+    $('calDone').classList.remove('hide');$('calRetry').classList.remove('hide');
+    let live=true;
+    (function tick(){
+      if(!live) return;
+      const r=detectPitch();
+      if(r.f>0){const v=voiceToShape(r.f,r.b);
+        $('calHz').innerHTML=v<-0.15?'<span style="color:#a78bfa">⬇ KALIN</span>':v>0.15?'<span style="color:#fb7185">İNCE ⬆</span>':'<span style="color:#fde047">ORTA</span>';}
+      else{bEma=null;$('calHz').textContent='🤫 sessiz';}
+      requestAnimationFrame(tick);
+    })();
+    const which=await new Promise(r=>{$('calDone').onclick=()=>r('done');$('calRetry').onclick=()=>r('retry');});
+    live=false;
+    if(which==='retry') ok=false;
   }
-  $('calInfo').textContent=txt;$('calHz').textContent='';
-  $('calDone').classList.remove('hide');
-  await new Promise(r=>{$('calDone').onclick=r;});
+  $('calHz').textContent='';
   state=prev==='calib'?'menu':prev;
 }
 })();
