@@ -322,7 +322,8 @@ export function commitRoad(plan) {
   return true;
 }
 // Köprü / üst geçit: rampalarla yükselen yol
-export const BRIDGE_H = 1.15, TUNNEL_H = -1.0, RAMP_L = 8;
+export const BRIDGE_H = 1.15, TUNNEL_H = -.8, RAMP_L = 8;
+const rampL = under => under ? 5.5 : RAMP_L;
 export function planElevated(x0, z0, x1, z1, type, under = false) {
   const rt = ROADS[type], hw = rt.w / 2;
   const elevNode = (x, z) => { let b = null, bd = 1.4; for (const n of R.nodes.values()) if (n.h && (under ? n.h < 0 : n.h > 0)) { const d = Math.hypot(n.x - x, n.z - z); if (d < bd) { bd = d; b = n; } } return b; };
@@ -332,9 +333,10 @@ export function planElevated(x0, z0, x1, z1, type, under = false) {
   const dx = B.x - A.x, dz = B.z - A.z, D = Math.hypot(dx, dz); plan.len = D;
   const ux = dx / D, uz = dz / D;
   const needA = !A.elev, needB = !B.elev;
-  if (D < (needA ? RAMP_L : 0) + (needB ? RAMP_L : 0) + 2) { plan.msg = 'Köprü için mesafe çok kısa (rampalar yer kaplar)'; return plan; }
+  const RL = rampL(under);
+  if (D < (needA ? RL : 0) + (needB ? RL : 0) + 1.5) { plan.msg = (under ? 'Alt geçit' : 'Köprü') + ' için mesafe çok kısa: rampalar dahil en az ' + Math.ceil(((needA ? RL : 0) + (needB ? RL : 0) + 1.5) * 8) + ' m çiz'; return plan; }
   if (A.node && B.node && A.node === B.node) { plan.msg = 'Yol çok kısa'; return plan; }
-  const A2 = needA ? { x: A.x + ux * RAMP_L, z: A.z + uz * RAMP_L } : A, B2 = needB ? { x: B.x - ux * RAMP_L, z: B.z - uz * RAMP_L } : B;
+  const A2 = needA ? { x: A.x + ux * RL, z: A.z + uz * RL } : A, B2 = needB ? { x: B.x - ux * RL, z: B.z - uz * RL } : B;
   plan.pts = [A, ...(needA ? [A2] : []), ...(needB ? [B2] : []), B];
   plan.angA = angInfo(A, ux, uz); plan.angB = angInfo(B, -ux, -uz); plan.refA = angRef(A, ux, uz); plan.refB = angRef(B, -ux, -uz);
   // uç açıları (zemin düğümleri)
@@ -347,7 +349,7 @@ export function planElevated(x0, z0, x1, z1, type, under = false) {
   for (let t = 0; t <= D; t += .4) {
     const x = A.x + ux * t, z = A.z + uz * t;
     if (!unlocked(x, z)) { plan.msg = 'Bu arazi henüz senin değil (🗺️ Arazi)'; return plan; }
-    const onRampA = needA && t < RAMP_L, onRampB = needB && t > D - RAMP_L, high = !onRampA && !onRampB;
+    const onRampA = needA && t < RL, onRampB = needB && t > D - RL, high = !onRampA && !onRampB;
     const nearEnd = Math.min(t, D - t) < hw + 1.8;
     const seen = new Set();
     for (const dxh of [-1, 0, 1]) for (const dzh of [-1, 0, 1]) for (const id of segsNear(x + dxh * HB, z + dzh * HB)) {

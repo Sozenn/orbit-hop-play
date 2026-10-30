@@ -139,7 +139,7 @@ export function carveTerrain() {
   for (let i = 0; i < P.count; i++) P.setY(i, baseY[i]);
   const N1 = TS + 1, H0 = TW / 2;
   for (const s of U) {
-    const g = segGeo(s.id), pad = g.hw + .4;
+    const g = segGeo(s.id), pad = g.hw + 1.2;
     const SP = TW / TS, x0 = Math.floor((Math.min(g.ax, g.bx) - pad + H0) / SP), x1 = Math.ceil((Math.max(g.ax, g.bx) + pad + H0) / SP), z0 = Math.floor((Math.min(g.az, g.bz) - pad + H0) / SP), z1 = Math.ceil((Math.max(g.az, g.bz) + pad + H0) / SP);
     for (let zi = Math.max(0, z0); zi <= Math.min(TS, z1); zi++) for (let xi = Math.max(0, x0); xi <= Math.min(TS, x1); xi++) {
       const x = xi * SP - H0, z = zi * SP - H0; let t = (x - g.ax) * g.ux + (z - g.az) * g.uz; t = clamp(t, 0, g.L);
@@ -240,7 +240,7 @@ export function buildRoads() {
     const s0 = ta, s1 = g.L - tb;
     const at = t => [g.ax + g.ux * t, g.az + g.uz * t];
     const sw = SIDEW[s.t] * rt.w, ah = hw - sw, ang = Math.atan2(g.ux, g.uz);
-    const hAt = t => g.ha + (g.hb - g.ha) * clamp(t / g.L, 0, 1), elev = g.ha > 0 || g.hb > 0;
+    const hAt = t => g.ha + (g.hb - g.ha) * clamp(t / g.L, 0, 1), elev = g.ha !== 0 || g.hb !== 0;
     if (s1 - s0 > .02) {
       const A = at(s0), B = at(s1), nx = g.nx, nz = g.nz, ya = y + hAt(s0), yb = y + hAt(s1);
       const nseg = Math.max(1, Math.ceil((s1 - s0) / 1));
@@ -262,7 +262,8 @@ export function buildRoads() {
       for (let t = 0; t < g.L; t += .5) { // alt geçit istinat duvarları
         const t1 = Math.min(g.L, t + .5), tm = (t + t1) / 2, h = hAt(tm); if (h > -.04) continue;
         const P0 = at(tm), c = ex(P0[0], P0[1], ang);
-        for (const sd of [1, -1]) { c.box('concrete', 'concrete', sd * (hw + .07), h - .02, 0, .12, -h + .1, t1 - t + .02); c.box('metal_d', null, sd * (hw + .1), .08, 0, .03, .1, t1 - t + .02); }
+        for (const sd of [1, -1]) { c.box('concrete', 'concrete', sd * (hw + .07), h - .02, 0, .12, -h + .1, t1 - t + .02); c.box('metal_d', null, sd * (hw + .1), .08, 0, .03, .1, t1 - t + .02); c.flat('grass', sd * (hw + .13 + .7), .012, 0, 1.4, t1 - t + .02); }
+        c.box('concrete_d', null, 0, h - .25, 0, hw * 2 + .1, .22, t1 - t + .02);
       }
       if (s.bs && s.bs !== 'beam' && g.ha > .5 && g.hb > .5 && s1 - s0 > 4) { const M2 = at((s0 + s1) / 2); bridgeDecor(ex(M2[0], M2[1], ang), s1 - s0, g.ha, hw, s.bs); }
       for (let t = 2; t < g.L - .5; t += 3.2) { const h = hAt(t); if (h < .45) continue; if (s.bs && s.bs !== 'beam' && h > .5) continue; const P0 = at(t), c = ex(P0[0], P0[1], ang); if (hw > 1.1) { c.box('concrete', null, hw * .5, 0, 0, .28, h - .16, .3); c.box('concrete', null, -hw * .5, 0, 0, .28, h - .16, .3); } else c.box('concrete', null, 0, 0, 0, .35, h - .16, .3); c.box('concrete_d', 'concrete_d', 0, h - .28, 0, hw * 2, .12, .34); }
@@ -351,7 +352,7 @@ export function buildRoads() {
     const arr = J.dirt ? dirtDisc : disc, C = [N.x, N.z];
     const hy = N.h || 0;
     for (let k = 0; k < J.poly.length; k++) triUp(arr, C, J.poly[k], J.poly[(k + 1) % J.poly.length], .028 + hy);
-    if (hy) { const c = ex(N.x, N.z, 0); c.cyl('concrete_d', 0, hy - .17, 0, nodeHW(nid) + .05, .17, 16); c.cyl('concrete', 0, 0, 0, .2, hy - .17, 10); }
+    if (hy > 0) { const c = ex(N.x, N.z, 0); c.cyl('concrete_d', 0, hy - .17, 0, nodeHW(nid) + .05, .17, 16); c.cyl('concrete', 0, 0, 0, .2, hy - .17, 10); }
     for (const c of J.curbs) {
       if (c.sw <= 0) continue;
       const P = c.pts, off = [];
