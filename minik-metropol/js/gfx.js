@@ -74,6 +74,14 @@ const waveNormal = (() => {
   g.putImageData(im, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(90, 90); return t;
 })();
 const waterMat = new THREE.MeshStandardMaterial({ color: 0x2f6f86, roughness: .06, metalness: .1, transparent: true, opacity: .82, normalMap: waveNormal, normalScale: new THREE.Vector2(.35, .35), envMap: skyCube, envMapIntensity: .9, depthWrite: false });
+const wmData = new Uint8Array(300 * 300).fill(255);
+const wmTex = new THREE.DataTexture(wmData, 300, 300, THREE.RedFormat, THREE.UnsignedByteType); wmTex.magFilter = wmTex.minFilter = THREE.LinearFilter; wmTex.needsUpdate = true;
+waterMat.onBeforeCompile = sh => {
+  sh.uniforms.uWMask = { value: wmTex };
+  sh.vertexShader = 'varying vec2 vWxz;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\nvWxz = (modelMatrix * vec4(transformed, 1.0)).xz;');
+  sh.fragmentShader = 'uniform sampler2D uWMask; varying vec2 vWxz;\n' + sh.fragmentShader.replace('void main() {', 'void main() {\n vec2 wuv = (vWxz + 150.) / 300.; if (wuv.x > 0. && wuv.y > 0. && wuv.x < 1. && wuv.y < 1. && texture2D(uWMask, wuv).r < .5) discard;');
+};
+waterMat.customProgramCacheKey = () => 'water1';
 const waterPlane = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), waterMat);
 waterPlane.position.y = WATER_Y; waterPlane.renderOrder = 1; waterPlane.userData.noDisp = 1; scene.add(waterPlane);
 const sandMat = new THREE.MeshStandardMaterial({ color: 0xcfba86, roughness: 1 });
@@ -89,6 +97,7 @@ function heightAt(f) { // f: su alanı değeri -> arazi yüksekliği
 export function buildWater(sea) {
   if (terrMesh) { scene.remove(terrMesh); terrMesh.geometry.dispose(); }
   updHeightTex();
+  for (let zi = 0; zi < 300; zi++) for (let xi = 0; xi < 300; xi++) wmData[zi * 300 + xi] = R.wf && R.wf(xi - 149.5, zi - 149.5) < 1.2 ? 255 : 0; wmTex.needsUpdate = true;
   const g = new THREE.PlaneGeometry(TW, TW, TS, TS).rotateX(-Math.PI / 2);
   const P = g.attributes.position, col = new Float32Array(P.count * 3), uv = g.attributes.uv, c = new THREE.Color();
   for (let i = 0; i < P.count; i++) {
@@ -410,11 +419,49 @@ export function syncBuildings() {
   // duman kaynakları ve rotorlar
   emitters = []; const want = [];
   for (const b of R.blds.values()) { if (cons.has(b.id)) continue; const c = bgeo(b); for (const e of c.emit) emitters.push({ ...e, id: b.id }); for (const d of c.dyn) want.push({ ...d, id: b.id }); }
-  while (rotors.length > want.length) { const r = rotors.pop(); scene.remove(r); }
-  for (let k = 0; k < want.length; k++) {
-    let r = rotors[k]; if (!r) { r = new THREE.Mesh(rotorGeo, rotorMat); r.castShadow = true; scene.add(r); rotors.push(r); }
-    r.position.set(...want[k].p); r.rotation.set(0, want[k].a, 0); r.userData.id = want[k].id;
+  while (rotors.length) { const r = rotors.pop(); scene.remove(r); }
+  for (const w of want) { const o = makeDyn(w); if (!o) continue; o.userData.t = w.t; o.userData.id = w.id; o.userData.base = w; scene.add(o); rotors.push(o); }
+}
+function makeDyn(w) {
+  const hy = hf(w.p[0], w.p[2]);
+  if (w.t === 'rotor') { const r = new THREE.Mesh(rotorGeo, rotorMat); r.castShadow = true; r.position.set(w.p[0], w.p[1], w.p[2]); r.rotation.set(0, w.a, 0); return r; }
+  if (w.t === 'wheel') { // dönme dolap
+    const g = new THREE.Group(); g.position.set(w.p[0], w.p[1], w.p[2]); g.rotation.y = w.a;
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(w.r, .04, 6, 40), new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: .4, roughness: .4 })); g.add(rim);
+    const cols = [0xe74c3c, 0xf1c40f, 0x3498db, 0x2ecc71, 0x9b59b6, 0xe67e22];
+    for (let k = 0; k < 12; k++) { const a = k / 12 * 6.283; const sp = new THREE.Mesh(new THREE.BoxGeometry(.02, w.r, .02).translate(0, w.r / 2, 0), rim.material); sp.rotation.z = a; g.add(sp); const cab = new THREE.Mesh(new THREE.BoxGeometry(.22, .2, .2), new THREE.MeshStandardMaterial({ color: cols[k % 6] })); cab.position.set(Math.cos(a) * w.r, Math.sin(a) * w.r, 0); cab.userData.cab = 1; g.add(cab); }
+    g.userData.spin = .25; return g;
   }
+  if (w.t === 'beacon') { // fener ışığı
+    const g = new THREE.Group(); g.position.set(w.p[0], w.p[1] + hy, w.p[2]);
+    const beam = new THREE.Mesh(new THREE.ConeGeometry(.9, 9, 16, 1, true).rotateZ(Math.PI / 2).translate(4.5, 0, 0), new THREE.MeshBasicMaterial({ color: 0xfff5c0, transparent: true, opacity: .18, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+    beam.userData.noDisp = 1; g.add(beam); g.userData.spin = 1.2; g.userData.beam = beam; return g;
+  }
+  if (w.t === 'plane') { // havalimanı uçağı
+    const g = new THREE.Group(); const wm = new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: .4, metalness: .3 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(.16, .12, 2.2, 10).rotateX(Math.PI / 2), wm); g.add(body);
+    const nose = new THREE.Mesh(new THREE.SphereGeometry(.16, 10, 8), wm); nose.position.z = 1.1; g.add(nose);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(2.2, .04, .45), wm); wing.position.z = .1; g.add(wing);
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(.8, .03, .25), wm); tail.position.z = -.95; g.add(tail);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(.04, .45, .3), new THREE.MeshStandardMaterial({ color: 0xc62828 })); fin.position.set(0, .25, -.95); g.add(fin);
+    for (const sx of [.55, -.55]) { const e = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, .3, 8).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x9e9e9e })); e.position.set(sx, -.08, .2); g.add(e); }
+    g.traverse(o => { if (o.isMesh) { o.castShadow = true; o.userData.noDisp = 1; } });
+    g.userData.plane = { x: w.p[0], z: w.p[2], a: w.a, L: w.L, y0: hy + .15 }; return g;
+  }
+  return null;
+}
+function updPlane(o, tm) {
+  const P = o.userData.plane, T = 60, k = (tm / 1000 % T) / T, ca = Math.cos(P.a), sa = Math.sin(P.a);
+  // yerel: z pist boyunca. 0-.15 kalkış koşusu, .15-.3 tırmanış, .3-.75 tur, .75-.9 alçalma, .9-1 iniş ve bekleme
+  let lx = 0, lz, y, yaw = 0, pitch = 0;
+  const L = P.L;
+  if (k < .15) { const f = k / .15; lz = -L / 2 + L * .8 * f * f; y = 0; }
+  else if (k < .3) { const f = (k - .15) / .15; lz = -L / 2 + L * .8 + 30 * f; y = 9 * f; pitch = -.2; }
+  else if (k < .75) { const f = (k - .3) / .45, an = f * Math.PI * 2, R0 = 25; lz = L * .3 + 30 + Math.sin(an) * R0; lx = (1 - Math.cos(an)) * R0; y = 9 + Math.sin(an * 2) * 1.5; yaw = an; }
+  else if (k < .9) { const f = (k - .75) / .15; lz = L * .3 + 30 - (30 + L * .8) * f; y = 9 * (1 - f); pitch = .08; yaw = Math.PI; }
+  else { const f = (k - .9) / .1; lz = -L / 2 - f * 0; y = 0; yaw = Math.PI; }
+  o.position.set(P.x + lx * ca + lz * sa, P.y0 + y, P.z - lx * sa + lz * ca);
+  o.rotation.set(pitch * (yaw === Math.PI ? -1 : 1), P.a + yaw, 0, 'YXZ');
 }
 
 // ---------- inşaat animasyonu ----------
@@ -762,7 +809,7 @@ export function updFx(dt, simDt, tm) {
     const a = 1 - p.life / p.max; p.sp.position.x += p.vx * dt; p.sp.position.y += p.vy * dt;
     const s = p.s0 + a * p.grow; p.sp.scale.set(s, s, 1); p.sp.material.opacity = (1 - a) * .55;
   }
-  for (const r of rotors) r.rotation.z += dt * 2.2;
+  for (const r of rotors) { const t = r.userData.t; if (t === 'rotor') r.rotation.z += dt * 2.2; else if (t === 'wheel') { r.children.forEach(ch => { if (!ch.userData.cab) ch.rotation.z = 0; }); r.rotation.z += 0; r.userData.ang = (r.userData.ang || 0) + dt * .25; r.children.forEach((ch, i) => { if (ch.userData.cab) { const a = (i - 1) / 2 / 12 * 6.283 + r.userData.ang; } }); const a0 = r.userData.ang; let ci = 0; r.children.forEach(ch => { if (ch.isMesh && ch.geometry.type === 'BoxGeometry' && !ch.userData.cab) ch.rotation.z = (ci++) / 12 * 6.283 + a0; }); let cj = 0; r.children.forEach(ch => { if (ch.userData.cab) { const a = (cj++) / 12 * 6.283 + a0; ch.position.set(Math.cos(a) * r.userData.base.r, Math.sin(a) * r.userData.base.r, 0); } }); } else if (t === 'beacon') { r.rotation.y += dt * 1.2; r.userData.beam.material.opacity = .08 + night * .25; } else if (t === 'plane') updPlane(r, tm); }
   waveNormal.offset.set((tm / 60000) % 1, (tm / 85000) % 1);
   for (const [id, g] of fires) {
     if (!R.blds.has(id) || !R.blds.get(id).fire) { scene.remove(g); fires.delete(id); continue; }

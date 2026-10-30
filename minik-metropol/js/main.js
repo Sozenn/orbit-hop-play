@@ -37,7 +37,7 @@ function sfx(k) {
 // ---------- oyun durumu ----------
 let isPreview = true, running = false, paused = false, speed = 1;
 let cat = 'pan', item = null, brush = 1.6, curveMode = false, elevMode = false, lastRoad = 'street', svcRot = 0, fillMode = false, panLock = false, curveA = null, underMode = false, rbSize = 'm', bStyle = 'beam';
-const lastItem = { road: 'street', zone: 'r1', util: 'wind', svc: 'clinic', park: 'park', cult: 'cami', trans: 'busstop' };
+const lastItem = { road: 'street', zone: 'r1', util: 'wind', svc: 'clinic', park: 'park', cult: 'cami', trans: 'busstop', simge: 'saatk' };
 
 // ---------- HUD ----------
 let toastT = 0;
@@ -92,11 +92,11 @@ function itemsFor(c) {
     { id: 'bstyle', i: { beam: '🌉', susp: '🌁', stay: '🎐', arch: '⌒' }[bStyle], n: 'Köprü tipi', pr: { beam: 'Kiriş', susp: 'Asma', stay: 'Eğik askılı', arch: 'Kemer' }[bStyle] },
     { id: 'round', i: '⭕', n: 'Döner kavşak', pr: 'her yere koy' }, { id: 'rsize', i: rbSize === 's' ? '◦' : rbSize === 'm' ? '○' : '◯', n: 'Göbek boyu', pr: { s: 'Küçük', m: 'Orta', l: 'Büyük' }[rbSize] }];
   if (c === 'zone') return [...ZONE_ORDER.map(k => ({ id: k, i: ZONES[k].i, n: ZONES[k].n + ' ' + ZONES[k].sub, lock: ZONES[k].ms > ms ? ZONES[k].ms : 0, sw: ZONES[k].c })), { id: 'x', i: '🚫', n: 'Bölgeyi sil', sw: '#fff' }, { id: 'fill', i: '🪣', n: 'Bloğu doldur', pr: fillMode ? 'AÇIK' : 'kapalı', on: fillMode }, { id: 'brush', i: brush < 1 ? '•' : brush < 2 ? '●' : brush < 3 ? '⬤' : '⭕', n: 'Fırça ' + (brush < 1 ? 'küçük' : brush < 2 ? 'orta' : brush < 3 ? 'büyük' : 'çok büyük') }];
-  const cats = { util: ['wind', 'coal', 'solar', 'wtower', 'pump'], svc: ['clinic', 'hosp', 'ilk', 'orta', 'lise', 'uni', 'police', 'fire', 'cop'], park: ['park', 'play', 'plaza', 'bigpark', 'stadium'], cult: ['cami', 'kutup', 'muze'], trans: ['busdep', 'busstop', 'metro'] }[c];
+  const cats = { util: ['wind', 'coal', 'solar', 'wtower', 'pump'], svc: ['clinic', 'hosp', 'ilk', 'orta', 'lise', 'uni', 'police', 'fire', 'cop'], park: ['park', 'play', 'plaza', 'bigpark', 'stadium'], cult: ['cami', 'kutup', 'muze'], trans: ['busdep', 'busstop', 'metro'], simge: ['saatk', 'luna', 'tvk', 'fener', 'havali'] }[c];
   if (cats) return [...cats.map(k => ({ id: k, i: SVC[k].i, n: SVC[k].n, pr: '💰' + fmt(SVC[k].cost), lock: SVC[k].ms > ms ? SVC[k].ms : 0 })), { id: 'rot', i: '🔄', n: 'Döndür', pr: ['ön yola', 'sağa', 'arkaya', 'sola'][svcRot] }];
   return [];
 }
-const HINTS = { pan: 'Kaydırmak için sürükle · Bir şeye dokun: bilgi ve yıkma', road: 'Sürükle: yol çiz · Yollar kesişince kavşak olur · Var olan yola dokun: seçili tipe dönüştür', zone: 'Yolun kenarındaki kareleri parmağınla boya · 🪣 ile bütün bloğu tek dokunuşla doldur', util: 'Bir yolun yanına sürükleyip bırak', svc: 'Bir yolun yanına sürükleyip bırak · Halka etki alanını gösterir', park: 'Bir yolun yanına sürükleyip bırak', land: 'Yeşil araziye dokunup satın al', cult: 'Bir yolun yanına sürükleyip bırak · Çevredeki evleri mutlu eder', trans: 'Önce 🚌 garaj, sonra mahallelere 🚏 durak koy · Ⓜ️ metro istasyonları kendiliğinden bağlanır', bull: 'Yıkmak istediğin yola ya da binaya dokun' };
+const HINTS = { pan: 'Kaydırmak için sürükle · Bir şeye dokun: bilgi ve yıkma', road: 'Sürükle: yol çiz · Yollar kesişince kavşak olur · Var olan yola dokun: seçili tipe dönüştür', zone: 'Yolun kenarındaki kareleri parmağınla boya · 🪣 ile bütün bloğu tek dokunuşla doldur', util: 'Bir yolun yanına sürükleyip bırak', svc: 'Bir yolun yanına sürükleyip bırak · Halka etki alanını gösterir', park: 'Bir yolun yanına sürükleyip bırak', land: 'Yeşil araziye dokunup satın al', cult: 'Bir yolun yanına sürükleyip bırak · Çevredeki evleri mutlu eder', simge: 'Turist çeken simge yapılar · Deniz feneri kıyıya kurulur', trans: 'Önce 🚌 garaj, sonra mahallelere 🚏 durak koy · Ⓜ️ metro istasyonları kendiliğinden bağlanır', bull: 'Yıkmak istediğin yola ya da binaya dokun' };
 function buildSub() {
   const box = $('sub'); box.innerHTML = '';
   $('subhint').textContent = HINTS[cat] || '';
@@ -330,7 +330,7 @@ function actionDown(x, y) {
   if (cat === 'zone' || cat === 'bull') pushUndo();
   if (cat === 'zone') { doPaint(g, true); }
   else if (cat === 'bull') doBull(g, true);
-  else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans') { GS.plan = planSvc(g[0], g[1], item, svcRot); G.setGhostBld(GS.plan); costTag(x, y, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
+  else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans' || cat === 'simge') { GS.plan = planSvc(g[0], g[1], item, svcRot); G.setGhostBld(GS.plan); costTag(x, y, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
 }
 function doPaint(g, first) {
   if (item === 'brush' || item === 'fill' || !item) return;
@@ -376,7 +376,7 @@ cv.addEventListener('pointermove', e => {
       else GS.plan = (elevMode || underMode) ? Wd.planElevated(GS.start[0], GS.start[1], g[0], g[1], item, underMode) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); roadTags(GS.plan); }
     else if (cat === 'zone') doPaint(g);
     else if (cat === 'bull') doBull(g, false);
-    else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans') { GS.plan = planSvc(g[0], g[1], item, svcRot); G.setGhostBld(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
+    else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans' || cat === 'simge') { GS.plan = planSvc(g[0], g[1], item, svcRot); G.setGhostBld(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
   } else if (GS.mode === 'pinch' && ptrs.size >= 2) {
     const [p1, p2] = [...ptrs.values()], d = Math.hypot(p1.x - p2.x, p1.y - p2.y), a = Math.atan2(p2.y - p1.y, p2.x - p1.x);
     let da = a - GS.a0; while (da > Math.PI) da -= 6.283; while (da < -Math.PI) da += 6.283;
@@ -411,7 +411,7 @@ function endPtr(e) {
         if (GS.moved && GS.plan) { if (GS.plan.ok) { pushUndo(); if (GS.plan.elev) { GS.plan.bs = bStyle; Wd.commitElevated(GS.plan); } else if (bStyle !== 'beam' && GS.plan.bridge > 0) { GS.plan.bs = bStyle; commitRoad(GS.plan); } else if (GS.plan.curve) Wd.commitCurve(GS.plan); else commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
         else if (!GS.moved && g && item !== 'round') { const ns = nearestSeg(g[0], g[1], .3); if (ns && ns.d <= ns.hw + .3) { const s = R.segs.get(ns.id); if (s.t === item) showInfo({ kind: 'seg', id: ns.id }); else { pushUndo(); const r = upgradeSeg(ns.id, item); if (r === true) { sfx('road'); toast(`${ROADS[item].i} Yol ${ROADS[item].n} oldu`); afterChange(); } else { toast(r); sfx('err'); } } } }
         G.clearGhost();
-      } else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans') {
+      } else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans' || cat === 'simge') {
         if (GS.plan) { if (GS.plan.ok) { pushUndo(); const p = GS.plan; commitSvc(p); sfx('build'); floatAt(p.x, p.z, '-' + fmt(p.cost)); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
         G.clearGhost();
       } else if (cat === 'zone' && e.pointerType !== 'mouse') G.clearGhost();

@@ -93,6 +93,8 @@ export function initMaterials() {
   facade('h_blue', { wall: '#d6e2ea', shutter: '#5a4032', bay: .42, fh: .36 });
   facade('h_sand', { wall: '#e2cfa4', frame: '#f7f2e6', bay: .42, fh: .36, sill: '#fff' });
   facade('h_brick', { wall: '#b5654a', brick: true, frame: '#f3efe6', bay: .42, fh: .36 });
+  facade('h_wood', { wall: '#a0704a', frame: '#f3ead8', shutter: '#5a3a22', bay: .42, fh: .36, sill: '#f3ead8', ledge: 'rgba(60,30,10,.4)' });
+  facade('h_cumba', { wall: '#efe6d2', frame: '#7a4a2a', bay: .35, fh: .36, ww: 28, wh: 30, ledge: 'rgba(90,50,20,.5)' });
   facade('h_modern', { wall: '#f4f4f2', glass: ['#7fa8c8', '#2a4a66'], mullion: 'rgba(40,40,40,.8)', bay: .7, fh: .38, lit: .5 });
   // apartman
   facade('ap_beige', { wall: '#ddd0b8', ledge: 'rgba(0,0,0,.12)', balcony: '#f2efe8', bay: .5, fh: .36, ww: 30 });

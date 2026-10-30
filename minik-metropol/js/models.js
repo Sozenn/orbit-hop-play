@@ -119,6 +119,15 @@ function r1(c, b) {
     if (D >= 2) c.tree(-W / 2 + .25, -D / 2 + .3, .9, v);
     // çit
     c.box('white', 'white', 0, 0, -D / 2 + .03, W - .1, .07, .02);
+  } else if (L <= 4 && hash(b.id * 17) < .3) {
+    const hw = Math.min(W - .25, .8), hd = Math.min(D - .4, .6), cz = fz - .25 - hd / 2, wf = hash(b.id) < .5 ? 'h_wood' : 'h_cumba';
+    c.box(pick(HOUSE_W, v), null, 0, 0, cz, hw, FH, hd);
+    c.box(wf, null, 0, FH, cz + .06, hw + .06, FH * (L >= 3 ? 2 : 1), hd + .12);
+    c.box(wf, 'roof_red', 0, FH * 1.15, cz + hd / 2 + .12, hw * .45, FH * .7, .14);
+    const top = FH * (L >= 3 ? 3 : 2);
+    c.hip(roof, 0, top, cz + .06, hw + .22, hd + .3, .28);
+    c.box('brown', 'brown', -.1, 0, cz + hd / 2 + .001, .14, .26, .01);
+    c.tree(W / 2 - .2, -D / 2 + .25, .9, v2); c.box('hedge', 'hedge', 0, 0, fz - .03, W - .4, .1, .06);
   } else if (L <= 4) {
     const hw = Math.min(W - .2, .9), hd = Math.min(D - .3, .75), h = 2 * FH, cz = fz - .18 - hd / 2;
     c.box(wall, null, -.05, 0, cz, hw, h, hd);
@@ -163,6 +172,11 @@ function r2(c, b) {
     c.box('concrete_d', 'gravel', -bw * .2, h + .06, cz, .35, .3, .3);
     c.cyl('metal', bw * .25, h + .06, cz + .1, .1, .22, 10);
     c.box('glass', 'concrete', 0, 0, cz + bd / 2 + .02, .4, .32, .05);
+  } else if (hash(b.id * 29) < .3 && bw > 1.2) {
+    const f = pick(['ap_modern', 'of_glassB', 'of_glassG'], v);
+    c.box('sf_' + pick(['blue', 'green', 'teal'], v), 'gravel', 0, 0, cz, bw, .42, bd);
+    if (hash(b.id * 31) < .5) { for (const sx of [-1, 1]) { c.box(f, 'gravel', sx * bw * .24, .42, cz, bw * .38, h, Math.min(bd, 1.4) * .7); c.box('metal', 'metal', sx * bw * .24, .42 + h, cz, bw * .2, .3, .3); } c.box(f, 'gravel', 0, .42 + h * .6, cz, bw * .2, .3, .3); }
+    else { c.cyl(f, 0, .42, cz, Math.min(bw, bd) * .38, h, 20); c.cyl('concrete', 0, .42 + h, cz, Math.min(bw, bd) * .4, .08, 20); c.cone('metal', 0, .5 + h, cz, Math.min(bw, bd) * .3, .8, 20); }
   } else {
     // kule + kaide
     const f = pick(['ap_modern', 'ap_white', 'ap_grey', 'of_glassB'], v);
@@ -186,7 +200,18 @@ function c1(c, b) {
   const W = b.w, D = b.d, v = b.v, L = b.lvl, sf = pick(SF, v);
   c.flat('pave', 0, .004, 0, W, D);
   const bw = W - .12, bd = Math.min(D - .25, D > 1 ? 1.4 : .8), cz = D / 2 - .15 - bd / 2;
-  if (L === 1) {
+  const sg = SIGN[(v * 5) | 0];
+  if (L === 1 && W >= 2 && hash(b.id * 7) < .3) {
+    c.flat('lot', 0, .006, .1, W - .1, D - .1);
+    c.box('white', 'white', 0, .45, .3, W * .7, .06, .7); c.box(sg, sg, 0, .43, .3, W * .7, .03, .72);
+    for (const x of [-.3, .3]) { c.box('metal_d', null, x * W * .6, 0, .3, .04, .45, .04); c.box('white', 'white', x * W * .6, 0, .3, .08, .16, .12); c.box('red', 'red', x * W * .6, .16, .3, .08, .03, .12); }
+    c.box('h_white', 'gravel', -W / 2 + .45, 0, -D / 2 + .35, .7, .35, .5, { front: sf });
+    c.cyl('metal_d', W / 2 - .2, 0, D / 2 - .2, .02, .9, 6); c.box(sg, sg, W / 2 - .2, .8, D / 2 - .2, .25, .25, .04);
+  } else if (L === 1 && hash(b.id * 7) < .55 && D >= 2) {
+    const bd2 = Math.min(D - .7, .8), cz2 = -D / 2 + .1 + bd2 / 2;
+    c.box('h_white', 'gravel', 0, 0, cz2, W - .12, .44, bd2, { front: sf });
+    for (let k = 0; k < Math.max(1, W * 1.5 | 0); k++) { const x = -W / 2 + .3 + k * .45, z = D / 2 - .3; c.cyl('wood', x, 0, z, .07, .1, 8); c.cyl('metal_d', x, 0, z, .01, .32, 4); c.cone(['sign_r', 'sign_g', 'sign_y'][k % 3], x, .3, z, .18, .08, 8); }
+  } else if (L === 1) {
     c.box('h_white', 'gravel', 0, 0, cz, bw, .44, bd, { front: sf });
     c.box('concrete', 'concrete', 0, .44, cz, bw + .03, .04, bd + .03);
     const aw = SIGN[(v * 5) | 0];
@@ -406,6 +431,42 @@ const SVCM = {
     c.box('black', 'black', 0, -.2, .45, .7, .21, .5);
     c.cyl('metal_d', .75, 0, .75, .02, .9, 6); c.box('sign_r', 'sign_r', .75, .95, .75, .26, .26, .04); c.box('white', 'white', .75, .95, .772, .14, .14, .005);
     c.tree(-.75, .7, .7, .3);
+  },
+  saatk(c, b) {
+    c.flat('pave', 0, .005, 0, 2, 2); c.box('concrete', 'concrete', 0, 0, 0, .9, .15, .9);
+    c.box('civic', null, 0, .15, 0, .55, 2.4, .55);
+    for (const [dx, dz, ry] of [[0, .28, 0], [0, -.28, Math.PI], [.28, 0, Math.PI / 2], [-.28, 0, -Math.PI / 2]]) { c.geo('white', cg('clockf', () => new THREE.CylinderGeometry(.2, .2, .02, 20).rotateX(Math.PI / 2)), dx, 2.1, dz, ry); c.geo('black', cg('clockh', () => new THREE.BoxGeometry(.02, .15, .01).translate(0, .07, 0)), dx * 1.06, 2.1, dz * 1.06, ry); }
+    c.box('civic', 'civic', 0, 2.55, 0, .62, .1, .62); c.hip('roof_grey', 0, 2.65, 0, .6, .6, .55); c.cyl('yellow', 0, 3.2, 0, .015, .25, 6);
+    for (const [x, z] of [[-.75, -.75], [.75, .75]]) c.tree(x, z, .8, .3);
+  },
+  luna(c, b) {
+    c.flat('pave', 0, .005, 0, 5, 4);
+    c.box('metal_d', null, -1.2, 0, -.6, .1, 1.7, .5); c.box('metal_d', null, -1.2, 0, .1, .1, 1.7, .5);
+    c.dyn.push({ t: 'wheel', p: c.W(-1.2, 1.8, -.25), a: c.a + Math.PI / 2, r: 1.4 });
+    c.cyl('red', 1.1, 0, .6, .7, .12, 20); c.cone('yellow', 1.1, .7, .6, .8, .4, 12); for (let k = 0; k < 8; k++) { const a = k / 8 * 6.283; c.cyl('white', 1.1 + Math.cos(a) * .55, .12, .6 + Math.sin(a) * .55, .02, .58, 6); }
+    c.box('sign_r', 'sign_r', 1.4, 0, -1.3, .8, .4, .5); c.box('sign_b', 'sign_b', .4, 0, -1.4, .5, .3, .4);
+    for (const [x, z] of [[-2.2, 1.6], [2.2, 1.6], [2.2, -1.6]]) c.tree(x, z, .9, .5);
+  },
+  tvk(c, b) {
+    c.flat('pave', 0, .005, 0, 3, 3);
+    c.taper('concrete', 0, 0, 0, .35, .16, 5, 16);
+    c.cyl('glass', 0, 3.6, 0, .55, .3, 20); c.cyl('white', 0, 3.9, 0, .6, .08, 20); c.cyl('of_glassB', 0, 3.98, 0, .45, .25, 20);
+    c.taper('white', 0, 4.23, 0, .1, .02, 1.6, 8); c.box('sign_r', 'sign_r', 0, 5.8, 0, .06, .06, .06);
+    for (const [x, z] of [[-1.1, -1.1], [1.1, 1.1], [1.1, -1.1]]) c.tree(x, z, .8, .2);
+  },
+  fener(c, b) {
+    c.flat('pave', 0, .005, 0, 2, 2); c.box('white', 'roof_red', -.5, 0, .4, .6, .35, .5);
+    c.taper('stripe', 0, 0, -.2, .32, .22, 2.4, 16); c.cyl('black', 0, 2.4, -.2, .26, .04, 12); c.cyl('glass', 0, 2.44, -.2, .2, .3, 12); c.cone('red', 0, 2.74, -.2, .26, .28, 12); c.box('lamp', 'lamp', 0, 2.5, -.2, .14, .14, .14);
+    c.dyn.push({ t: 'beacon', p: c.W(0, 2.58, -.2), a: 0 });
+  },
+  havali(c, b) {
+    const W = b.w, D = b.d;
+    c.flat('grass', 0, .004, 0, W, D);
+    c.flat('lot', 0, .007, -D / 2 + 1.1, W - .4, 1.3); for (let x = -W / 2 + 1; x < W / 2 - 1; x += .8) c.flat('white', x, .009, -D / 2 + 1.1, .4, .06);
+    c.box('of_glassB', 'metal', -W / 2 + 2.2, 0, D / 2 - 1, 3.6, .7, 1.4); c.box('white', 'white', -W / 2 + 2.2, .7, D / 2 - 1, 3.8, .06, 1.6);
+    c.cyl('concrete', W / 2 - 1.5, 0, D / 2 - .9, .2, 2, 10); c.cyl('glass', W / 2 - 1.5, 2, D / 2 - .9, .35, .35, 12); c.cyl('metal_d', W / 2 - 1.5, 2.35, D / 2 - .9, .38, .05, 12);
+    c.box('ind_grey', 'metal', 1.2, 0, D / 2 - 1, 1.6, .6, 1.2); c.gable('metal_d', 1.2, .6, D / 2 - 1, 1.66, 1.26, .3);
+    c.dyn.push({ t: 'plane', p: c.W(-W / 2 + 1, .15, -D / 2 + 1.1), a: c.a + Math.PI / 2, L: W - 2 });
   },
   stadium(c, b) {
     c.flat('lot', 0, .004, 0, b.w, b.d);

@@ -894,7 +894,7 @@ export function derive() {
     st.exp += D.up;
     if (!b.ok) continue;
     if (D.elec) st.eSup += D.elec; if (D.water) st.wSup += D.water;
-    if (D.cat in svcs) svcs[D.cat].push(b); if (D.cat === 'culture') svcs.park.push(b); if (D.tour) tour += D.tour;
+    if (D.cat in svcs) svcs[D.cat].push(b); if (D.cat === 'culture' || D.cat === 'land') svcs.park.push(b); if (D.tour) tour += D.tour;
     if (b.svc === 'stadium') tour += 5; if (b.svc === 'metro' || (b.svc === 'busstop' && hasDepot)) svcs.transit.push(b);
     if (D.poll) svcs.poll.push({ x: b.x, z: b.z, p: D.poll * (P.filtre ? .5 : 1), r: 14 });
   }

@@ -60,6 +60,11 @@ export const SVC = {
   busdep: { n: 'Otobüs garajı', i: '🚌', cat: 'trans', cost: 5000, up: 0.8, w: 3, d: 3, ms: 0 },
   busstop: { n: 'Otobüs durağı', i: '🚏', cat: 'trans', cost: 300, up: 0.05, w: 1, d: 1, r: 10, ms: 0 },
   metro: { n: 'Metro istasyonu', i: 'Ⓜ️', cat: 'trans', cost: 12000, up: 2, w: 2, d: 2, r: 18, ms: 2 },
+  saatk: { n: 'Saat kulesi', i: '🕰️', cat: 'land', cost: 6000, up: 0.3, w: 2, d: 2, r: 20, val: 10, tour: 2, ms: 1 },
+  luna: { n: 'Lunapark', i: '🎡', cat: 'land', cost: 12000, up: 1.2, w: 5, d: 4, r: 30, val: 14, tour: 6, ms: 2 },
+  tvk: { n: 'TV kulesi', i: '🗼', cat: 'land', cost: 18000, up: 1, w: 3, d: 3, r: 30, val: 8, tour: 5, ms: 2 },
+  fener: { n: 'Deniz feneri', i: '🚨', cat: 'land', cost: 5000, up: 0.3, w: 2, d: 2, r: 15, val: 8, tour: 3, needWater: true, ms: 0 },
+  havali: { n: 'Havalimanı', i: '✈️', cat: 'land', cost: 60000, up: 6, w: 12, d: 6, r: 60, val: 0, tour: 25, poll: 6, ms: 3 },
   stadium: { n: 'Stadyum', i: '🏟️', cat: 'park', cost: 15000, up: 2, w: 6, d: 5, r: 45, val: 14, ms: 3 },
 };
 
@@ -83,6 +88,7 @@ export const CATS = [
   { id: 'park', n: 'Park', i: '🌳' },
   { id: 'cult', n: 'Kültür', i: '🕌' },
   { id: 'trans', n: 'Ulaşım', i: '🚌' },
+  { id: 'simge', n: 'Simge', i: '🎡' },
   { id: 'land', n: 'Arazi', i: '🗺️' },
   { id: 'bull', n: 'Yık', i: '🧨' },
 ];
