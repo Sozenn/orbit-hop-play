@@ -36,7 +36,7 @@ function sfx(k) {
 
 // ---------- oyun durumu ----------
 let isPreview = true, running = false, paused = false, speed = 1;
-let cat = 'pan', item = null, brush = 1.6, curveMode = false, elevMode = false, lastRoad = 'street', svcRot = 0, fillMode = false;
+let cat = 'pan', item = null, brush = 1.6, curveMode = false, elevMode = false, lastRoad = 'street', svcRot = 0, fillMode = false, panLock = false, curveA = null;
 const lastItem = { road: 'street', zone: 'r1', util: 'wind', svc: 'clinic', park: 'park', cult: 'cami', trans: 'busstop' };
 
 // ---------- HUD ----------
@@ -117,7 +117,7 @@ function buildSub() {
   }
 }
 function selCat(c) {
-  cat = c; item = lastItem[c] || null; hideInfo(); G.clearGhost();
+  cat = c; item = lastItem[c] || null; hideInfo(); G.clearGhost(); curveA = null; panLock = false; updLock();
   if (c === 'land' || c === 'bull' || c === 'pan') item = null;
   buildCats(); buildSub();
   G.buildCells(cat === 'zone');
@@ -139,6 +139,7 @@ function bldAt(x, z) {
 }
 function pickAt(x, z) {
   const b = bldAt(x, z); if (b) return { kind: 'bld', id: b.id, b };
+  for (const n of R.nodes.values()) { if (Wd.degree(n.id) >= 3 && !n.h && Math.hypot(n.x - x, n.z - z) < Wd.nodeHW(n.id) + .4) return { kind: 'node', id: n.id }; }
   const ns = nearestSeg(x, z, .3); if (ns && ns.d <= ns.hw + .3) return { kind: 'seg', id: ns.id };
   return null;
 }
@@ -171,12 +172,19 @@ function showInfo(o, quiet) {
       } else h += `<div class="need">⭐ En üst seviyede</div>`;
     }
     h += `<div class="acts"><button class="ab red" data-a="del">🧨 Yık</button></div>`;
+  } else if (o.kind === 'node') {
+    const N = R.nodes.get(o.id); if (!N) { hideInfo(); return; }
+    const c = Wd.ctlOf(o.id), J = R.junc.get(o.id);
+    h += `<h3>🚦 Kavşak (${J ? J.n : 0} yollu)</h3>Şu an: <b>${{ light: '🚦 Trafik ışığı', stop: '🛑 Dur levhası', none: '➖ Kontrolsüz' }[c]}</b>`;
+    h += `<div class="need">Trafik ışığında araçlar sırayla geçer. Dur levhasında her araç durup geçer. Kontrolsüz kavşakta kimse durmaz.</div>`;
+    h += `<div class="acts"><button class="ab ${c === 'light' ? 'yel' : ''}" data-a="ctl:light">🚦 Işık</button><button class="ab ${c === 'stop' ? 'yel' : ''}" data-a="ctl:stop">🛑 Dur levhası</button><button class="ab ${c === 'none' ? 'yel' : ''}" data-a="ctl:none">➖ Kontrolsüz</button><button class="ab" data-a="round">⭕ Döner kavşak yap</button></div>`;
   } else {
     const s = R.segs.get(o.id); if (!s) { hideInfo(); return; }
     const g = segGeo(o.id), rt = ROADS[s.t];
     h += `<h3>${rt.i} ${rt.n}</h3>Uzunluk: ${(g.L * 8).toFixed(0)} m · ${R.conn.has(o.id) ? '✅ otobana bağlı' : '❌ bağlı değil'}`;
     h += `<div class="acts">`;
     for (const t of ROAD_ORDER) if (t !== s.t) { const lk = ROADS[t].ms > S().ms; h += `<button class="ab" data-a="up:${t}" ${lk ? 'disabled' : ''}>${ROADS[t].i} ${ROADS[t].n}${lk ? ' 🔒' : ' 💰' + fmt(upgradeCost(o.id, t))}</button>`; }
+    if (ROADS[s.t].oneway) h += `<button class="ab" data-a="flip">↔️ Yönü çevir</button>`;
     h += `<button class="ab red" data-a="del">🧨 Yık</button></div>`;
   }
   $('infoBody').innerHTML = h; $('info').style.display = 'block'; selObj = o; G.setSelect(o);
@@ -187,6 +195,9 @@ function hideInfo() { $('info').style.display = 'none'; selObj = null; G.setSele
 function act(o, a) {
   pushUndo();
   if (a === 'del') { if (o.kind === 'bld') { const b = R.blds.get(o.id); removeBld(o.id); sfx('bull'); if (b) G.dust(b.x, b.z); } else { const r = deleteSeg(o.id); if (r !== true) { toast(r); sfx('err'); return; } sfx('bull'); } hideInfo(); afterChange(); return; }
+  if (a.startsWith('ctl:')) { Wd.setCtl(o.id, a.slice(4)); sfx('tap'); afterChange(); showInfo(o, true); return; }
+  if (a === 'round') { const r = Wd.makeRoundabout(o.id); if (r === true) { sfx('road'); toast('⭕ Döner kavşak yapıldı'); hideInfo(); afterChange(); } else { toast(r); sfx('err'); } return; }
+  if (a === 'flip') { Wd.flipSeg(o.id); sfx('road'); hideInfo(); afterChange(); return; }
   if (a.startsWith('up:')) { const r = upgradeSeg(o.id, a.slice(3)); if (r !== true) { toast(r === 'same' ? 'Zaten bu tip' : r); sfx('err'); return; } sfx('road'); hideInfo(); afterChange(); }
 }
 $('infoX').onclick = hideInfo;
@@ -321,13 +332,13 @@ cv.addEventListener('pointerdown', e => {
   try { cv.setPointerCapture(e.pointerId); } catch (_) { }
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (ptrs.size === 1) {
-    const mode = e.button === 2 ? 'rot' : (e.button === 1 || cat === 'pan' || cat === 'land') ? 'pan' : 'act';
+    const mode = e.button === 2 ? 'rot' : (e.button === 1 || cat === 'pan' || cat === 'land' || panLock) ? 'pan' : 'act';
     GS = { mode, sx: e.clientX, sy: e.clientY, lx: e.clientX, moved: false, grab: groundAt(e.clientX, e.clientY), start: groundAt(e.clientX, e.clientY) };
     if (mode === 'act' && cat !== 'road') actionDown(e.clientX, e.clientY);
   } else if (ptrs.size === 2) {
     G.clearGhost(); costTag(); const [p1, p2] = [...ptrs.values()];
     const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-    GS = { mode: 'pinch', d0: Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1, a0: Math.atan2(p2.y - p1.y, p2.x - p1.x), dist0: cam.dist, yaw0: cam.yaw, grab: groundAt(mx, my) };
+    GS = { mode: 'pinch', d0: Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1, a0: Math.atan2(p2.y - p1.y, p2.x - p1.x), dist0: cam.dist, yaw0: cam.yaw, grab: groundAt(mx, my), zoomOn: false, rotOn: false };
   }
 });
 cv.addEventListener('pointermove', e => {
@@ -341,13 +352,22 @@ cv.addEventListener('pointermove', e => {
     if (far) GS.moved = true;
     const g = groundAt(e.clientX, e.clientY); if (!g) return;
     if (cat === 'road' && item === 'round') { const n = Wd.roundaboutAt(g[0], g[1]); G.setGhostNode(n, !!n); }
-    else if (cat === 'road' && GS.moved && GS.start) { GS.plan = elevMode ? Wd.planElevated(GS.start[0], GS.start[1], g[0], g[1], item) : curveMode ? Wd.planCurve(GS.start[0], GS.start[1], g[0], g[1], item) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `${GS.plan.elev ? '🌉 ' : ''}${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${GS.plan.bridge ? ' · 🌉 köprü' : ''}${angTxt(GS.plan)}` : GS.plan.msg, GS.plan.ok); }
+    else if (cat === 'road' && curveMode && curveA) { GS.plan = Wd.planCurve(curveA.A[0], curveA.A[1], g[0], g[1], item, curveA.C); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `〰️ ${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${angTxt(GS.plan)}` : GS.plan.msg, GS.plan.ok); edgePan(e.clientX, e.clientY); }
+    else if (cat === 'road' && GS.moved && GS.start) {
+      edgePan(e.clientX, e.clientY);
+      if (curveMode) { const t = Wd.planCurve(GS.start[0], GS.start[1], g[0], g[1], item); GS.curveStage1 = !!t.noTangent; GS.plan = t.noTangent ? Object.assign(planRoad(GS.start[0], GS.start[1], g[0], g[1], item), { stage1: true }) : t; }
+      else GS.plan = elevMode ? Wd.planElevated(GS.start[0], GS.start[1], g[0], g[1], item) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `${GS.plan.elev ? '🌉 ' : ''}${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${GS.plan.bridge ? ' · 🌉 köprü' : ''}${angTxt(GS.plan)}` : GS.plan.msg, GS.plan.ok); }
     else if (cat === 'zone') doPaint(g);
     else if (cat === 'bull') doBull(g, false);
     else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans') { GS.plan = planSvc(g[0], g[1], item, svcRot); G.setGhostBld(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
   } else if (GS.mode === 'pinch' && ptrs.size >= 2) {
     const [p1, p2] = [...ptrs.values()], d = Math.hypot(p1.x - p2.x, p1.y - p2.y), a = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-    cam.dist = clamp(GS.dist0 * GS.d0 / d, 6, 120); cam.yaw = GS.yaw0 - (a - GS.a0); cam.yawT = cam.yaw; updCam();
+    let da = a - GS.a0; while (da > Math.PI) da -= 6.283; while (da < -Math.PI) da += 6.283;
+    if (!GS.zoomOn && Math.abs(d / GS.d0 - 1) > .08) { GS.zoomOn = true; GS.d0 = d; GS.dist0 = cam.dist; }
+    if (!GS.rotOn && Math.abs(da) > .22) { GS.rotOn = true; GS.a0 = a; GS.yaw0 = cam.yaw; da = 0; }
+    if (GS.zoomOn) cam.dist = clamp(GS.dist0 * GS.d0 / d, 6, 120);
+    if (GS.rotOn) { cam.yaw = GS.yaw0 - da; cam.yawT = cam.yaw; }
+    updCam();
     const p = groundAt((p1.x + p2.x) / 2, (p1.y + p2.y) / 2); if (p && GS.grab) { cam.x += GS.grab[0] - p[0]; cam.z += GS.grab[1] - p[1]; clampCam(); updCam(); }
   }
 });
@@ -364,6 +384,13 @@ function endPtr(e) {
         if (!n) { toast('⭕ Döner kavşak için 3 ya da daha fazla yolun buluştuğu bir kavşağa dokun'); sfx('err'); }
         else { pushUndo(); const r = Wd.makeRoundabout(n.id); if (r === true) { sfx('road'); toast('⭕ Döner kavşak yapıldı'); afterChange(); } else { toast(r); sfx('err'); } }
         G.clearGhost();
+      } else if (cat === 'road' && curveMode && curveA) {
+        if (!GS.plan && g) GS.plan = Wd.planCurve(curveA.A[0], curveA.A[1], g[0], g[1], item, curveA.C);
+        if (GS.plan && GS.plan.ok) { pushUndo(); Wd.commitCurve(GS.plan); sfx('road'); afterChange(); } else if (GS.plan) { toast(GS.plan.msg); sfx('err'); }
+        curveA = null; G.clearGhost();
+      } else if (cat === 'road' && curveMode && GS.moved && GS.plan && GS.plan.stage1) {
+        curveA = { A: [GS.plan.A.x, GS.plan.A.z], C: [GS.plan.B.x, GS.plan.B.z] };
+        G.setGhostRoad(GS.plan); toast('〰️ Kavis yönü tamam. Şimdi bitiş noktasına sürükle ya da dokun.', 3000); sfx('tap');
       } else if (cat === 'road') {
         if (GS.moved && GS.plan) { if (GS.plan.ok) { pushUndo(); if (GS.plan.elev) Wd.commitElevated(GS.plan); else if (GS.plan.curve) Wd.commitCurve(GS.plan); else commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
         else if (!GS.moved && g && item !== 'round') { const ns = nearestSeg(g[0], g[1], .3); if (ns && ns.d <= ns.hw + .3) { const s = R.segs.get(ns.id); if (s.t === item) showInfo({ kind: 'seg', id: ns.id }); else { pushUndo(); const r = upgradeSeg(ns.id, item); if (r === true) { sfx('road'); toast(`${ROADS[item].i} Yol ${ROADS[item].n} oldu`); afterChange(); } else { toast(r); sfx('err'); } } } }
@@ -373,7 +400,7 @@ function endPtr(e) {
         G.clearGhost();
       } else if (cat === 'zone' && e.pointerType !== 'mouse') G.clearGhost();
     }
-    costTag(); GS = null;
+    costTag(); GS = null; edgeVX = edgeVY = 0;
   } else if (ptrs.size === 1) { const [p] = [...ptrs.values()]; GS = { mode: 'pan', sx: p.x, sy: p.y, moved: true, grab: groundAt(p.x, p.y) }; }
 }
 cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
@@ -383,7 +410,11 @@ cv.addEventListener('wheel', e => {
   const g1 = groundAt(e.clientX, e.clientY); if (g0 && g1) { cam.x += g0[0] - g1[0]; cam.z += g0[1] - g1[1]; } clampCam(); updCam();
 }, { passive: false });
 function clampCam() { cam.x = clamp(cam.x, -WH - 10, WH + 10); cam.z = clamp(cam.z, -WH - 10, WH + 10); }
+let edgeVX = 0, edgeVY = 0;
+function edgePan(x, y) { const m = 46; edgeVX = x < m ? -1 : x > G.VW - m ? 1 : 0; edgeVY = y < m + 60 ? -1 : y > G.VH - 200 && y < G.VH - 150 ? 1 : 0; }
 function rotate(dir) { cam.yawT = Math.round((cam.yawT + dir * Math.PI / 4) / (Math.PI / 4)) * (Math.PI / 4); }
+function updLock() { const b = $('bLock'); b.style.display = (cat === 'pan' || cat === 'land') ? 'none' : 'flex'; b.textContent = panLock ? '✋' : '✏️'; b.style.background = panLock ? 'rgba(46,134,222,.9)' : ''; }
+$('bLock').onclick = () => { initAudio(); sfx('tap'); panLock = !panLock; updLock(); toast(panLock ? '✋ Kaydırma modu: tek parmakla haritayı gez' : '✏️ Çizim modu: tek parmakla inşa et'); };
 $('bRotL').onclick = () => { initAudio(); sfx('tap'); rotate(-1); };
 $('bRotR').onclick = () => { initAudio(); sfx('tap'); rotate(1); };
 addEventListener('keydown', e => {
@@ -411,7 +442,7 @@ function openMenu() {
   $('mNew').textContent = 'Yeni şehir'; $('mNew').className = has ? 'btn sec' : 'btn'; updOpts();
 }
 function loadWorldGfx() {
-  G.resetWorldGfx(); G.clearTraffic(); G.clearPeople(); G.buildWater(); G.buildSea((S().terr || 1) >= 2);
+  G.resetWorldGfx(); G.clearTraffic(); G.clearPeople(); G.buildWater((S().terr || 1) >= 2);
   R.dirty.roads = R.dirty.blds = R.dirty.trees = R.dirty.cells = R.dirty.tiles = true;
 }
 function startGame() {
@@ -447,6 +478,8 @@ function frame(tm) {
     G.updTraffic(simDt); G.updPeople(simDt);
   }
   if (isPreview && $('menu').style.display !== 'none') { cam.yawT += dt * .05; cam.yaw = cam.yawT; }
+  if ((edgeVX || edgeVY) && GS && GS.mode === 'act') { const sp = cam.dist * .9 * dt, cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw); cam.x += (edgeVX * cy + edgeVY * -sy) * sp; cam.z += (-edgeVX * sy + edgeVY * -cy) * sp; clampCam(); }
+  else { edgeVX = edgeVY = 0; }
   if (Math.abs(cam.yawT - cam.yaw) > 1e-3) cam.yaw += (cam.yawT - cam.yaw) * Math.min(1, dt * 8);
   updCam();
   if (S() && G.updConstruction(simDt, tm)) G.syncBuildings();

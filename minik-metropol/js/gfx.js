@@ -1,7 +1,7 @@
 // 3D sahne: zemin, su, yollar, binalar (parça parça birleştirilmiş), ağaçlar, trafik, efektler
 import * as THREE from '../lib/three.module.js';
 import { TILE, TILES, WORLD, WH, ROADS, ZONES, SVC } from './data.js';
-import { S, R, segGeo, nodeHW, degree, gi, tileOf, hash, findPath, segBetween, clamp, isWater, trimAt, SIDEW } from './world.js';
+import { S, R, segGeo, nodeHW, degree, gi, tileOf, hash, findPath, segBetween, clamp, isWater, trimAt, SIDEW, ctlOf } from './world.js';
 import { MAT, nightMats, initMaterials, roadTexture, grassTexture, softTexture, labelTexture } from './tex.js';
 import { MB, toGeometry, buildModel, Ctx } from './models.js';
 
@@ -24,42 +24,76 @@ initMaterials();
 const M = k => (MAT[k] ? MAT[k].m : MAT.concrete.m);
 
 // ---------- zemin ----------
-const grassTex = grassTexture(); grassTex.repeat.set(600 / 5, 600 / 5);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(600, 600), new THREE.MeshStandardMaterial({ map: grassTex, roughness: 1 }));
-ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-
-// ---------- su ----------
-let waterMesh = null, sandMesh = null;
-const waterMat = new THREE.MeshStandardMaterial({ color: 0x3a88bf, roughness: .08, metalness: .25, transparent: true, opacity: .93 });
+// ---------- arazi (yumuşak kıyılı) ve su ----------
+const grayTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d'); g.fillStyle = '#d8d8d8'; g.fillRect(0, 0, 512, 512); let sd = 7; const r = () => { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; return sd / 4294967296; };
+  for (let k = 0; k < 50; k++) { const x = r() * 512, y = r() * 512, rad = 20 + r() * 70, gr = g.createRadialGradient(x, y, 0, x, y, rad); gr.addColorStop(0, r() < .5 ? 'rgba(255,255,255,.18)' : 'rgba(0,0,0,.12)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x - rad, y - rad, rad * 2, rad * 2); }
+  for (let k = 0; k < 9000; k++) { const v = 190 + r() * 60 | 0; g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(r() * 512, r() * 512, 2, 2); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace; return t; })();
+const GREEN = new THREE.Color('#7fb455'), SAND = new THREE.Color('#e3cf9a'), WETS = new THREE.Color('#b59d6c'), MUD = new THREE.Color('#5e5638'), DEEP = new THREE.Color('#3c4a3c');
+const terrMat = new THREE.MeshStandardMaterial({ map: grayTex, vertexColors: true, roughness: 1 });
+grayTex.repeat.set(1, 1);
+const outerMat = new THREE.MeshStandardMaterial({ map: grayTex, color: GREEN, roughness: 1 });
+const TW = 300, TS = 300; // arazi örgüsü boyu ve bölme sayısı (1 birim)
+let terrMesh = null, outerGroup = new THREE.Group(); scene.add(outerGroup);
+export const WATER_Y = -.07;
+// gökyüzü yansıması için küp doku
+const skyCube = (() => { const faces = []; for (let i = 0; i < 6; i++) { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); const gr = g.createLinearGradient(0, 0, 0, 64); if (i === 2) { g.fillStyle = '#8ec5ec'; g.fillRect(0, 0, 64, 64); } else if (i === 3) { g.fillStyle = '#5d7a8a'; g.fillRect(0, 0, 64, 64); } else { gr.addColorStop(0, '#7db9e8'); gr.addColorStop(.55, '#cfe6f5'); gr.addColorStop(1, '#8fa8a0'); g.fillStyle = gr; g.fillRect(0, 0, 64, 64); } faces.push(c); } const t = new THREE.CubeTexture(faces); t.needsUpdate = true; t.colorSpace = THREE.SRGBColorSpace; return t; })();
+// dalga normal haritası
+const waveNormal = (() => {
+  const N = 256, h = new Float32Array(N * N); let sd = 3; const r = () => { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; return sd / 4294967296; };
+  const waves = []; for (let k = 0; k < 14; k++) waves.push([(1 + (r() * 6 | 0)) * (r() < .5 ? -1 : 1), (1 + (r() * 6 | 0)) * (r() < .5 ? -1 : 1), r() * 6.28, .3 + r() * .7]);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { let v = 0; for (const [a, b, p, A] of waves) v += Math.sin((a * x + b * y) / N * 6.283 + p) * A / Math.hypot(a, b); h[y * N + x] = v; }
+  const c = document.createElement('canvas'); c.width = c.height = N; const g = c.getContext('2d'), im = g.createImageData(N, N);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { const dx = h[y * N + (x + 1) % N] - h[y * N + (x - 1 + N) % N], dy = h[((y + 1) % N) * N + x] - h[((y - 1 + N) % N) * N + x]; const nx = -dx * 2.5, ny = -dy * 2.5, nz = 1, l = Math.hypot(nx, ny, nz), i = (y * N + x) * 4; im.data[i] = (nx / l * .5 + .5) * 255; im.data[i + 1] = (ny / l * .5 + .5) * 255; im.data[i + 2] = (nz / l * .5 + .5) * 255; im.data[i + 3] = 255; }
+  g.putImageData(im, 0, 0); const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(90, 90); return t;
+})();
+const waterMat = new THREE.MeshStandardMaterial({ color: 0x2f6f86, roughness: .06, metalness: .1, transparent: true, opacity: .82, normalMap: waveNormal, normalScale: new THREE.Vector2(.35, .35), envMap: skyCube, envMapIntensity: .9, depthWrite: false });
+const waterPlane = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), waterMat);
+waterPlane.position.y = WATER_Y; waterPlane.renderOrder = 1; scene.add(waterPlane);
 const sandMat = new THREE.MeshStandardMaterial({ color: 0xcfba86, roughness: 1 });
-export function buildWater() {
-  for (const m of [waterMesh, sandMesh]) if (m) { scene.remove(m); m.geometry.dispose(); }
-  const wp = [], sp = [];
-  const quad = (arr, x0, z0, x1, z1, y) => arr.push(x0, y, z1, x1, y, z1, x1, y, z0, x0, y, z1, x1, y, z0, x0, y, z0);
-  const sand = new Uint8Array(WORLD * WORLD);
-  for (let zi = 0; zi < WORLD; zi++) for (let xi = 0; xi < WORLD; xi++) if (R.water[zi * WORLD + xi]) for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) { const x = xi + a, z = zi + b; if (x >= 0 && z >= 0 && x < WORLD && z < WORLD) sand[z * WORLD + x] = 1; }
-  for (let zi = 0; zi < WORLD; zi++) {
-    for (const [mask, arr, y, pad] of [[R.water, wp, .012, 0], [sand, sp, .006, .25]]) {
-      let run = -1;
-      for (let xi = 0; xi <= WORLD; xi++) {
-        const on = xi < WORLD && mask[zi * WORLD + xi];
-        if (on && run < 0) run = xi;
-        if (!on && run >= 0) { quad(arr, run - WH - pad, zi - WH - pad, xi - WH + pad, zi + 1 - WH + pad, y); run = -1; }
-      }
-    }
+const seabed = new THREE.Mesh(new THREE.PlaneGeometry(900, 900).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x3e5a52, roughness: 1 }));
+seabed.position.y = -.9; scene.add(seabed);
+const rockIM = new THREE.InstancedMesh(new THREE.DodecahedronGeometry(.18, 0), new THREE.MeshStandardMaterial({ color: 0x8b8a84, roughness: .9, flatShading: true }), 900);
+rockIM.castShadow = true; rockIM.receiveShadow = true; rockIM.count = 0; scene.add(rockIM);
+function heightAt(f) { // f: su alanı değeri -> arazi yüksekliği
+  if (f >= .6) return 0;
+  if (f >= 0) return -.05 * (1 - f / .6);
+  return Math.max(-.85, -.05 + f * .32);
+}
+export function buildWater(sea) {
+  if (terrMesh) { scene.remove(terrMesh); terrMesh.geometry.dispose(); }
+  const g = new THREE.PlaneGeometry(TW, TW, TS, TS).rotateX(-Math.PI / 2);
+  const P = g.attributes.position, col = new Float32Array(P.count * 3), uv = g.attributes.uv, c = new THREE.Color();
+  for (let i = 0; i < P.count; i++) {
+    const x = P.getX(i), z = P.getZ(i), f = R.wf ? R.wf(x, z) : 9;
+    const y = heightAt(f); P.setY(i, y);
+    if (f > 1.6) c.copy(GREEN);
+    else if (f > .9) c.copy(SAND).lerp(GREEN, (f - .9) / .7);
+    else if (f > .15) c.copy(SAND);
+    else if (f > -.35) c.copy(WETS).lerp(SAND, (f + .35) / .5);
+    else c.copy(MUD).lerp(DEEP, clamp((-f - .35) / 2.5, 0, 1));
+    col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    uv.setXY(i, x / 6, z / 6);
   }
-  const mk = (arr, mat) => { const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(arr, 3)); g.computeVertexNormals(); const m = new THREE.Mesh(g, mat); m.receiveShadow = true; scene.add(m); return m; };
-  waterMesh = mk(wp, waterMat); sandMesh = mk(sp, sandMat);
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3)); g.computeVertexNormals();
+  terrMesh = new THREE.Mesh(g, terrMat); terrMesh.receiveShadow = true; scene.add(terrMesh);
+  // dış halka (arazi örgüsünün dışı)
+  for (const c2 of [...outerGroup.children]) { outerGroup.remove(c2); c2.geometry.dispose(); }
+  const H = TW / 2, F = 450;
+  const rect = (x0, z0, x1, z1) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(x1 - x0, z1 - z0).rotateX(-Math.PI / 2), outerMat); m.position.set((x0 + x1) / 2, -.002, (z0 + z1) / 2); m.receiveShadow = true; m.material.map.repeat.set(1, 1); outerGroup.add(m); };
+  rect(-F, -F, F, -H); rect(-F, -H, -H, sea ? WH - 25 : H); rect(H, -H, F, sea ? WH - 25 : H); if (!sea) rect(-F, H, F, F);
+  // kıyı taşları
+  let n = 0; let sd = 11; const r = () => { sd = (Math.imul(sd, 1664525) + 1013904223) >>> 0; return sd / 4294967296; };
+  for (let k = 0; k < 30000 && n < 900; k++) {
+    const x = (r() - .5) * WORLD * 1.2, z = (r() - .5) * WORLD * 1.2, f = R.wf ? R.wf(x, z) : 9;
+    if (f < -.25 || f > .35 || r() < .6) continue;
+    _q.setFromEuler(new THREE.Euler(r() * 3, r() * 3, r() * 3)); const sc = .5 + r() * 1.3;
+    _mt.compose(_p.set(x, heightAt(f) + .02, z), _q, _s.set(sc, sc * .6, sc)); rockIM.setMatrixAt(n++, _mt);
+  }
+  _s.set(1, 1, 1); rockIM.count = n; rockIM.instanceMatrix.needsUpdate = true; rockIM.computeBoundingSphere();
+  seabed.visible = !!sea;
 }
-
-// ---------- deniz ve uzak dağlar ----------
-let seaMesh = null;
-export function buildSea(on) {
-  if (seaMesh) { scene.remove(seaMesh); seaMesh = null; }
-  if (!on) return;
-  seaMesh = new THREE.Mesh(new THREE.PlaneGeometry(700, 300).rotateX(-Math.PI / 2), waterMat);
-  seaMesh.position.set(0, .011, WH + 150 - 6); scene.add(seaMesh);
-}
+export function buildSea() { }
 {
   const mm = new THREE.MeshStandardMaterial({ color: 0x5f7f68, roughness: 1, flatShading: true, fog: false });
   const snow = new THREE.MeshStandardMaterial({ color: 0xf4f6f8, roughness: 1, flatShading: true, fog: false });
@@ -78,7 +112,7 @@ const roadMats = {}; for (const t of Object.keys(ROADS)) roadMats[t] = new THREE
 const discMat = new THREE.MeshStandardMaterial({ color: 0x3e4147, roughness: .92, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const dirtDiscMat = new THREE.MeshStandardMaterial({ color: 0x9b7b55, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 const roadGroup = new THREE.Group(); scene.add(roadGroup);
-const ROADY = { dirt: .02, street: .022, avenue: .024, highway: .026 };
+const ROADY = { dirt: .02, oneway: .021, street: .022, avenue: .024, highway: .026 };
 const lampGeo = new THREE.CylinderGeometry(.018, .024, .7, 5).translate(0, .35, 0);
 const lampHeadGeo = new THREE.BoxGeometry(.18, .03, .06).translate(.07, .7, 0);
 const lampPole = new THREE.InstancedMesh(lampGeo, new THREE.MeshStandardMaterial({ color: 0x3a3f45, metalness: .5, roughness: .5 }), 3000);
@@ -127,20 +161,26 @@ export function buildRoads() {
       for (let t = 2; t < g.L - .5; t += 3.2) { const h = hAt(t); if (h < .45) continue; const P0 = at(t), c = ex(P0[0], P0[1], ang); if (hw > 1.1) { c.box('concrete', null, hw * .5, 0, 0, .28, h - .16, .3); c.box('concrete', null, -hw * .5, 0, 0, .28, h - .16, .3); } else c.box('concrete', null, 0, 0, 0, .35, h - .16, .3); c.box('concrete_d', 'concrete_d', 0, h - .28, 0, hw * 2, .12, .34); }
     }
     // kavşak ağzı: yaya geçidi, dur çizgisi, trafik ışığı
-    if (s.t !== 'dirt' && s.t !== 'highway' && !elev) for (const [nid, t0, dir] of [[s.a, ta, 1], [s.b, g.L - tb, -1]]) {
+    if (s.t !== 'highway' && !elev) for (const [nid, t0, dir] of [[s.a, ta, 1], [s.b, g.L - tb, -1]]) {
       const J = R.junc.get(nid); if (!J || J.n < 3) continue;
+      const ctl = ctlOf(nid);
+      if (s.t === 'dirt' && ctl !== 'stop') continue;
       if (s1 - s0 < 1.2) continue;
       const c = t0 + dir * .32, l = .3, C = at(c);
       const P = [[C[0] + g.nx * ah - g.ux * l / 2, C[1] + g.nz * ah - g.uz * l / 2], [C[0] - g.nx * ah - g.ux * l / 2, C[1] - g.nz * ah - g.uz * l / 2], [C[0] - g.nx * ah + g.ux * l / 2, C[1] - g.nz * ah + g.uz * l / 2], [C[0] + g.nx * ah + g.ux * l / 2, C[1] + g.nz * ah + g.uz * l / 2]];
-      const rep = ah * 2 / .45; quadUV(zebra, P, [[0, 0], [rep, 0], [rep, 1], [0, 1]], .034);
+      const rep = ah * 2 / .45; if (s.t !== 'dirt') quadUV(zebra, P, [[0, 0], [rep, 0], [rep, 1], [0, 1]], .034);
+      if (ROADS[s.t].oneway && dir > 0) { /* tek yönde çıkış ağzına dur çizgisi koyma */ }
       // dur çizgisi: düğüme doğru gelen şerit (yön -dir*u, sağ şerit)
       const sc = t0 + dir * .58, S0 = at(sc), side = -dir; // gelen trafik sağdan: offset (-uz,ux)*(-dir)
       const ox = -g.uz * side, oz = g.ux * side;
       const q = [[S0[0], S0[1]], [S0[0] + ox * ah, S0[1] + oz * ah], [S0[0] + ox * ah + g.ux * dir * .07, S0[1] + oz * ah + g.uz * dir * .07], [S0[0] + g.ux * dir * .07, S0[1] + g.uz * dir * .07]];
       triUp(stops, q[0], q[1], q[2], .034); triUp(stops, q[0], q[2], q[3], .034);
-      // trafik ışığı (gelen şeridin sağ kaldırımında)
-      const T = at(t0 + dir * .7), px = T[0] + ox * (ah + sw * .5), pz = T[1] + oz * (ah + sw * .5);
+      // trafik ışığı ya da dur levhası (gelen şeridin sağ kaldırımında)
+      if (ROADS[s.t].oneway && dir > 0) continue;
+      const T = at(t0 + dir * .7), px = T[0] + ox * (ah + sw * .5 + (s.t === 'dirt' ? .3 : 0)), pz = T[1] + oz * (ah + sw * .5 + (s.t === 'dirt' ? .3 : 0));
       const c2 = ex(px, pz, ang + (dir > 0 ? Math.PI : 0));
+      if (ctl === 'stop') { c2.cyl('metal_d', 0, 0, 0, .015, .5, 6); c2.geo('red', new THREE.CylinderGeometry(.08, .08, .015, 8).rotateX(Math.PI / 2).rotateZ(Math.PI / 8).toNonIndexed(), 0, .55, .02); continue; }
+      if (ctl !== 'light') continue;
       c2.cyl('metal_d', 0, 0, 0, .02, .75, 6); c2.box('black', 'black', 0, .62, 0, .08, .22, .06);
       const grp = Math.abs(Math.round(Math.atan2(g.uz, g.ux) / (Math.PI / 2))) % 2 ? 'A' : 'B';
       c2.box('tl' + grp + '_r', 'tl' + grp + '_r', 0, .78, .032, .04, .04, .01); c2.box('tl' + grp + '_g', 'tl' + grp + '_g', 0, .66, .032, .04, .04, .01);
@@ -426,7 +466,7 @@ const sirIM = new THREE.InstancedMesh(new THREE.BoxGeometry(.14, .04, .06).trans
 sirIM.count = 0; sirIM.frustumCulled = false; scene.add(sirIM);
 const CARCOL = ['#c0392b', '#f1c40f', '#2e86de', '#ecf0f1', '#27ae60', '#34495e', '#e67e22', '#7f8c8d', '#ffffff', '#1e272e'];
 let cars = [];
-function laneOff(t, lane) { const rt = ROADS[t]; return rt.lanes === 1 ? rt.w * .2 : rt.w * (lane ? .36 : .2); }
+function laneOff(t, lane) { const rt = ROADS[t]; return rt.oneway ? 0 : rt.lanes === 1 ? rt.w * .2 : rt.w * (lane ? .36 : .2); }
 function spawnCar() {
   const zb = [...R.blds.values()].filter(b => b.seg && R.conn.has(b.seg));
   if (zb.length < 2 && !zb.length) return;
@@ -467,13 +507,36 @@ export function updTraffic(dt) {
     if (zb.length && Math.random() < .3) { const p = [...R.blds.values()].filter(b => b.svc === 'police' && R.conn.has(b.seg)); if (p.length) spawnSpecial(p[(Math.random() * p.length) | 0].id, zb[(Math.random() * zb.length) | 0].id, 'pol'); }
   }
   let n = 0;
+  const now = performance.now(), ph = Math.floor(now / 7000) % 2;
+  // aynı yol/yön/şeritteki araçlar (takip mesafesi)
+  const lanes = new Map();
+  for (const c of cars) { const k2 = c.path[c.i] + '>' + c.path[c.i + 1] + '|' + c.lane; let l = lanes.get(k2); if (!l) lanes.set(k2, l = []); l.push(c); }
+  for (const l of lanes.values()) l.sort((p, q) => q.t - p.t);
   for (let k = cars.length - 1; k >= 0; k--) {
     const c = cars[k];
     const a = R.nodes.get(c.path[c.i]), b = R.nodes.get(c.path[c.i + 1]);
     const s = a && b ? segBetween(a.id, b.id) : null;
     if (!s) { cars.splice(k, 1); continue; }
     const L = Math.hypot(b.x - a.x, b.z - a.z) || 1;
-    c.t += dt * ROADS[s.t].speed * (c.fast ? 1.5 : c.kind === 'bus' ? .75 : .9) / L;
+    let nt = c.t + dt * ROADS[s.t].speed * (c.fast ? 1.5 : c.kind === 'bus' ? .75 : .9) / L;
+    const emerg = c.kind === 'fire' || c.kind === 'amb' || c.kind === 'pol';
+    // kavşakta dur
+    if (!emerg && c.i + 1 < c.path.length - 1) {
+      const ctl = ctlOf(b.id);
+      if (ctl !== 'none') {
+        const tStop = 1 - (trimAt(b.id, s.id) + .62) / L;
+        if (c.t <= tStop && nt > tStop) {
+          let hold = false;
+          if (ctl === 'light') { const g2 = segGeo(s.id), grp = Math.abs(Math.round(Math.atan2(g2.uz, g2.ux) / (Math.PI / 2))) % 2 ? 'A' : 'B'; hold = !((grp === 'A' && ph === 0) || (grp === 'B' && ph === 1)); }
+          else if (ctl === 'stop') { if (c.stopAt !== b.id) { c.wait = (c.wait || 0) + dt; hold = c.wait < .8; if (!hold) { c.stopAt = b.id; c.wait = 0; } } }
+          if (hold) nt = tStop;
+        }
+      }
+    }
+    // öndeki araç
+    const l = lanes.get(c.path[c.i] + '>' + c.path[c.i + 1] + '|' + c.lane);
+    if (l) { const idx = l.indexOf(c); if (idx > 0) { const f = l[idx - 1]; const gap = (f.t - nt) * L; if (gap < .62 * Math.max(c.sc, 1)) nt = Math.max(c.t, f.t - .62 * Math.max(c.sc, 1) / L); } }
+    c.t = nt;
     if (c.t >= 1) { c.t = 0; c.i++; if (c.i >= c.path.length - 1) { cars.splice(k, 1); continue; } continue; }
     const ux = (b.x - a.x) / L, uz = (b.z - a.z) / L, off = laneOff(s.t, c.lane);
     c.x = a.x + (b.x - a.x) * c.t - uz * off; c.z = a.z + (b.z - a.z) * c.t + ux * off; c.y = (a.h || 0) + ((b.h || 0) - (a.h || 0)) * c.t;
@@ -566,6 +629,7 @@ export function updFx(dt, simDt, tm) {
     const s = p.s0 + a * p.grow; p.sp.scale.set(s, s, 1); p.sp.material.opacity = (1 - a) * .55;
   }
   for (const r of rotors) r.rotation.z += dt * 2.2;
+  waveNormal.offset.set((tm / 60000) % 1, (tm / 85000) % 1);
   for (const [id, g] of fires) {
     if (!R.blds.has(id) || !R.blds.get(id).fire) { scene.remove(g); fires.delete(id); continue; }
     g.children.forEach((sp, k) => { const o = sp.userData.o, f = .5 + .5 * Math.sin(tm / 90 + k * 1.7); sp.position.set(o[0], o[1] + f * .2, o[2]); sp.scale.set(.5 + f * .4, .7 + f * .5, 1); });
@@ -625,6 +689,9 @@ export function setSelect(obj) {
   if (obj.kind === 'bld') {
     const b = obj.b; const m = new THREE.Mesh(new THREE.PlaneGeometry(b.w + .1, b.d + .1).rotateX(-Math.PI / 2), selMat); m.position.set(b.x, .09, b.z); m.rotation.y = b.a; sel.add(m);
     const r = b.svc && SVC[b.svc].r; if (r) { const ring = new THREE.Mesh(new THREE.RingGeometry(r - .15, r, 64).rotateX(-Math.PI / 2), selMat); ring.position.set(b.x, .09, b.z); sel.add(ring); }
+  } else if (obj.kind === 'node') {
+    const N = R.nodes.get(obj.id); if (!N) return; const r = nodeHW(obj.id) + .6;
+    const m = new THREE.Mesh(new THREE.RingGeometry(r - .15, r, 40).rotateX(-Math.PI / 2), selMat); m.position.set(N.x, .1, N.z); sel.add(m);
   } else if (obj.kind === 'seg') {
     const g = segGeo(obj.id); const m = new THREE.Mesh(new THREE.PlaneGeometry(g.hw * 2 + .1, g.L).rotateX(-Math.PI / 2), selMat);
     m.position.set((g.ax + g.bx) / 2, .09, (g.az + g.bz) / 2); m.rotation.y = Math.atan2(g.ux, g.uz); sel.add(m);

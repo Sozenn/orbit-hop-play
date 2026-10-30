@@ -32,17 +32,18 @@ export function genTerrain(seed, terr = 1) {
   const n1 = vnoise(seed % 1000);
   const ph = r() * 6.28, amp = 6 + r() * 4, z0 = 30 + r() * 6;
   const lakeX = (r() < .5 ? -1 : 1) * (40 + r() * 25), lakeZ = -40 - r() * 25, lakeR = 7 + r() * 4;
-  R.water.fill(0);
-  for (let zi = 0; zi < WORLD; zi++) for (let xi = 0; xi < WORLD; xi++) {
-    const x = xi - WH + .5, z = zi - WH + .5;
+  // işaretli su alanı: <0 su içi (birim cinsinden yaklaşık uzaklık)
+  R.wf = (x, z) => {
     const cz = z0 + Math.sin(x * .03 + ph) * amp + Math.sin(x * .08 + ph * 2) * 2;
     const w = 3.2 + Math.sin(x * .05 + ph) * 1 + (n1(x * .1, z * .1) - .5) * 1.5;
-    let wet = Math.abs(z - cz) < w;
+    let f = Math.abs(z - cz) - w;
     const ld = Math.hypot(x - lakeX, z - lakeZ) + (n1(x * .15 + 50, z * .15) - .5) * 5;
-    if (ld < lakeR) wet = true;
-    if (terr >= 2 && z > WH - 16 + Math.sin(x * .06 + ph) * 4 + (n1(x * .08, 9) - .5) * 4) wet = true;
-    if (wet) R.water[zi * WORLD + xi] = 1;
-  }
+    f = Math.min(f, ld - lakeR);
+    if (terr >= 2) f = Math.min(f, (WH - 16 + Math.sin(x * .06 + ph) * 4 + (n1(x * .08, 9) - .5) * 4) - z);
+    return f;
+  };
+  R.water.fill(0);
+  for (let zi = 0; zi < WORLD; zi++) for (let xi = 0; xi < WORLD; xi++) if (R.wf(xi - WH + .5, zi - WH + .5) < 0) R.water[zi * WORLD + xi] = 1;
   // orman noktaları
   R.forest = [];
   const n2 = vnoise(seed % 777 + 3);
@@ -77,7 +78,7 @@ export function newGame() {
 }
 function pathHasWater(x0, z0, x1, z1) { const L = Math.hypot(x1 - x0, z1 - z0); for (let s = 0; s <= L; s += .5) { const t = s / L; if (isWater(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t)) return true; } return false; }
 export function serialize() {
-  S.nodes = [...R.nodes.values()].map(n => [n.id, +n.x.toFixed(3), +n.z.toFixed(3), n.out ? 1 : 0, n.h || 0]);
+  S.nodes = [...R.nodes.values()].map(n => [n.id, +n.x.toFixed(3), +n.z.toFixed(3), n.out ? 1 : 0, n.h || 0, n.ctl || '']);
   S.segs = [...R.segs.values()].map(s => [s.id, s.a, s.b, s.t, +s.o.toFixed(4)]);
   S.blds = [...R.blds.values()].map(b => ({ ...b, cells: undefined }));
   S.zones = {}; for (const c of R.cells.values()) if (c.zt) S.zones[c.pk] = c.zt;
@@ -88,7 +89,7 @@ export function deserialize(json) {
   if (!s || s.v !== 3) return false;
   S = s; S.pol = S.pol || {}; genTerrain(S.seed, S.terr || 1);
   R.nodes.clear(); R.segs.clear(); R.blds.clear(); R.cells.clear(); R.cellByKey.clear();
-  for (const [id, x, z, o, h] of S.nodes) R.nodes.set(id, { id, x, z, out: !!o, h: h || 0 });
+  for (const [id, x, z, o, h, ctl] of S.nodes) R.nodes.set(id, { id, x, z, out: !!o, h: h || 0, ctl: ctl || '' });
   for (const [id, a, b, t, o] of S.segs) R.segs.set(id, { id, a, b, t, o: o || 0 });
   for (const b of S.blds) R.blds.set(b.id, b);
   rebuildAll(S.zones);
@@ -116,7 +117,7 @@ function segIntersect(ax, az, bx, bz, cx, cz, dx, dz) {
   return { t, u, x: ax + rx * t, z: az + rz * t };
 }
 const HB = 6;
-const MINANG = 35 * Math.PI / 180;
+const MINANG = 28 * Math.PI / 180;
 function hkey(x, z, b) { return (Math.floor(x / b) + 1000) * 4096 + (Math.floor(z / b) + 1000); }
 function buildSegHash() {
   R.segHash.clear();
@@ -171,7 +172,7 @@ function resolvePoint(x, z, type) {
   if (bn) return { x: bn.x, z: bn.z, node: bn.id };
   const ns = nearestSeg(x, z, hw + .5, isGround);
   if (ns) {
-    const s = R.segs.get(ns.id), near = hw + ns.hw + 1;
+    const s = R.segs.get(ns.id), near = hw + ns.hw + .5;
     if (ns.t < near) { const A = R.nodes.get(s.a); return { x: A.x, z: A.z, node: A.id }; }
     if (ns.t > ns.g.L - near) { const B = R.nodes.get(s.b); return { x: B.x, z: B.z, node: B.id }; }
     return { x: ns.px, z: ns.pz, split: ns.id };
@@ -193,11 +194,11 @@ export function angInfo(P, vx, vz) {
 }
 
 // Yol planı: geçerlilik, maliyet, kavşak noktaları
-export function planRoad(x0, z0, x1, z1, type) {
+export function planRoad(x0, z0, x1, z1, type, opts = {}) {
   const rt = ROADS[type];
-  const A = resolvePoint(x0, z0, type);
-  let B = resolvePoint(x1, z1, type);
-  if (!B.node && !B.split) { // açı yakalama: önce bağlanılan yola göre, yoksa kuzeye göre (15° adım)
+  const A = opts.freeA ? { x: x0, z: z0 } : resolvePoint(x0, z0, type);
+  let B = opts.freeB ? { x: x1, z: z1 } : resolvePoint(x1, z1, type);
+  if (!B.node && !B.split && !opts.freeB) { // açı yakalama: önce bağlanılan yola göre, yoksa kuzeye göre (15° adım)
     const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz), a = Math.atan2(dz, dx), st = Math.PI / 12;
     const refs = refDirs(A); let best = null;
     for (const r of refs) { const ra = Math.atan2(r[1], r[0]); let rel = a - ra; const sr = Math.round(rel / st) * st; const d = Math.abs(sr - rel); if (d < .075 && (!best || d < best.d)) best = { d, ang: ra + sr }; }
@@ -241,7 +242,7 @@ export function planRoad(x0, z0, x1, z1, type) {
     if (!I) continue;
     if (lv === 'r') { plan.msg = 'Köprü rampasıyla kesişemez'; return plan; }
     if (!segAng(s.id, ux, uz)) { plan.msg = 'Yollar çok dar açıyla kesişiyor'; return plan; }
-    const ul = I.u * g.L, nr = rt.w / 2 + g.hw + 1;
+    const ul = I.u * g.L, nr = rt.w / 2 + g.hw + .5;
     if (ul < nr) cross.push({ t: I.t, x: g.ax, z: g.az, node: s.a });
     else if (ul > g.L - nr) cross.push({ t: I.t, x: g.bx, z: g.bz, node: s.b });
     else cross.push({ t: I.t, x: I.x, z: I.z, split: s.id });
@@ -252,10 +253,10 @@ export function planRoad(x0, z0, x1, z1, type) {
   for (const c of cross) {
     const prev = pts[pts.length - 1];
     if (c.node && prev.node === c.node) continue;
-    if (Math.hypot(c.x - prev.x, c.z - prev.z) < (prev === A && !A.node && !A.split ? 1.6 : rt.w + 1.6)) { plan.msg = 'Kavşaklar birbirine çok yakın'; return plan; }
+    if (Math.hypot(c.x - prev.x, c.z - prev.z) < (prev === A && !A.node && !A.split ? 1.4 : rt.w / 2 + 1.6)) { plan.msg = 'Kavşaklar birbirine çok yakın'; return plan; }
     pts.push(c);
   }
-  if (pts.length > 1 && Math.hypot(B.x - pts[pts.length - 1].x, B.z - pts[pts.length - 1].z) < rt.w + 1.6) { plan.msg = 'Kavşaklar birbirine çok yakın'; return plan; }
+  if (pts.length > 1 && Math.hypot(B.x - pts[pts.length - 1].x, B.z - pts[pts.length - 1].z) < rt.w / 2 + 1.6) { plan.msg = 'Kavşaklar birbirine çok yakın'; return plan; }
   pts.push(B);
   // örnekleme: su, kilitli arazi, üst üste binme
   let bridge = 0;
@@ -344,32 +345,63 @@ export function commitElevated(plan) {
 }
 
 // Eğri yol: var olan bir yolun ucundan teğet devam eder
-export function planCurve(x0, z0, x1, z1, type) {
+export function planCurve(x0, z0, x1, z1, type, ctrl) {
   let A = resolvePoint(x0, z0, type), B = resolvePoint(x1, z1, type), rev = false;
   const tan = P => { if (!P.node || degree(P.node) !== 1) return null; const s = R.segs.get(adjOf(P.node)[0]), O = R.nodes.get(s.a === P.node ? s.b : s.a), N = R.nodes.get(P.node); const dx = N.x - O.x, dz = N.z - O.z, l = Math.hypot(dx, dz); return [dx / l, dz / l]; };
-  let t = tan(A);
-  if (!t) { t = tan(B); if (t) { [A, B] = [B, A]; rev = true; } }
-  if (!t) { const p = planRoad(x0, z0, x1, z1, type); p.noTangent = true; return p; }
+  let t = ctrl ? null : tan(A);
+  if (!t && !ctrl) { t = tan(B); if (t) { [A, B] = [B, A]; rev = true; } }
+  if (!t && !ctrl) { const p = planRoad(x0, z0, x1, z1, type); p.noTangent = true; return p; }
   const dx = B.x - A.x, dz = B.z - A.z, D = Math.hypot(dx, dz);
   const plan = { ok: false, msg: '', cost: 0, curve: true, type, pieces: [], pts: [], A, B, len: 0, bridge: 0 };
   if (D < 2.5) { plan.msg = 'Yol çok kısa'; return plan; }
-  const cs = (t[0] * dx + t[1] * dz) / D;
-  if (cs < Math.cos(100 * Math.PI / 180)) { plan.msg = 'Eğri çok keskin'; return plan; }
-  if (cs > .995) { const p = planRoad(A.x, A.z, B.x, B.z, type); return p; }
-  const k = (D / 2) / Math.max(cs, .35), C = [A.x + t[0] * k, A.z + t[1] * k];
+  let C;
+  if (ctrl) {
+    C = ctrl; const ax = C[0] - A.x, az = C[1] - A.z, bx = B.x - C[0], bz = B.z - C[1], la = Math.hypot(ax, az), lb = Math.hypot(bx, bz);
+    if (la < .5 || lb < .5) { const p = planRoad(A.x, A.z, B.x, B.z, type); return p; }
+    if ((ax * bx + az * bz) / (la * lb) < Math.cos(110 * Math.PI / 180)) { plan.msg = 'Eğri çok keskin'; return plan; }
+  } else {
+    const cs = (t[0] * dx + t[1] * dz) / D;
+    if (cs < Math.cos(100 * Math.PI / 180)) { plan.msg = 'Eğri çok keskin'; return plan; }
+    if (cs > .995) { const p = planRoad(A.x, A.z, B.x, B.z, type); return p; }
+    const k = (D / 2) / Math.max(cs, .35); C = [A.x + t[0] * k, A.z + t[1] * k];
+  }
+  plan.C = C;
   // yay uzunluğu ve parçalar
   let alen = 0, prev = [A.x, A.z]; const smp = [];
   for (let i = 1; i <= 40; i++) { const u = i / 40, v = 1 - u, P = [v * v * A.x + 2 * v * u * C[0] + u * u * B.x, v * v * A.z + 2 * v * u * C[1] + u * u * B.z]; alen += Math.hypot(P[0] - prev[0], P[1] - prev[1]); prev = P; }
-  const n = Math.max(2, Math.min(16, Math.ceil(alen / 2.8)));
+  // yoğun örnekleme (yay uzunluğu ile)
+  const dense = []; let acc = 0, pv = null;
+  for (let i = 0; i <= 80; i++) { const u = i / 80, v = 1 - u, P = [v * v * A.x + 2 * v * u * C[0] + u * u * B.x, v * v * A.z + 2 * v * u * C[1] + u * u * B.z]; if (pv) acc += Math.hypot(P[0] - pv[0], P[1] - pv[1]); dense.push({ x: P[0], z: P[1], s: acc }); pv = P; }
+  const at = sArc => { for (let i = 1; i < dense.length; i++) if (dense[i].s >= sArc) { const p = dense[i - 1], q = dense[i], f = (sArc - p.s) / ((q.s - p.s) || 1); return { x: p.x + (q.x - p.x) * f, z: p.z + (q.z - p.z) * f }; } return { x: B.x, z: B.z }; };
+  // var olan yollarla kesişmeler
+  const cross = [];
+  for (let i = 1; i < dense.length; i++) {
+    const p = dense[i - 1], q = dense[i];
+    for (const sg of R.segs.values()) {
+      if (level(sg) === 'e') continue;
+      if ((A.node && (sg.a === A.node || sg.b === A.node)) || (B.node && (sg.a === B.node || sg.b === B.node)) || sg.id === A.split || sg.id === B.split) continue;
+      const g = segGeo(sg.id), I = segIntersect(p.x, p.z, q.x, q.z, g.ax, g.az, g.bx, g.bz);
+      if (I) cross.push({ s: p.s + (q.s - p.s) * I.t, x: I.x, z: I.z });
+    }
+  }
+  cross.sort((p, q) => p.s - q.s);
+  const keys = [{ s: 0, P: A, fixed: true }, ...cross.map(c => ({ s: c.s, P: { x: c.x, z: c.z }, fixed: true, cross: true })), { s: alen, P: B, fixed: true }];
   const pts = [];
-  for (let i = 0; i <= n; i++) { const u = i / n, v = 1 - u; pts.push([v * v * A.x + 2 * v * u * C[0] + u * u * B.x, v * v * A.z + 2 * v * u * C[1] + u * u * B.z]); }
-  if (rev) pts.reverse();
-  plan.pts = pts.map(p => ({ x: p[0], z: p[1] })); plan.len = alen;
-  { const e = pts[pts.length - 1], f = pts[pts.length - 2], l = Math.hypot(e[0] - f[0], e[1] - f[1]) || 1; const Bp = rev ? A : B; plan.angB = angInfo(rev ? A : B, (f[0] - e[0]) / l, (f[1] - e[1]) / l); }
+  for (let i = 0; i < keys.length; i++) {
+    pts.push({ ...keys[i] });
+    if (i === keys.length - 1) break;
+    const s0 = keys[i].s, s1 = keys[i + 1].s, span = s1 - s0, m = Math.max(1, Math.round(span / 2.6));
+    for (let j = 1; j < m; j++) { const sA = s0 + span * j / m; pts.push({ s: sA, P: at(sA), free: true }); }
+  }
+  plan.pts = pts.map(p => ({ x: p.P.x, z: p.P.z })); plan.len = alen; plan._pts = pts;
+  if (rev) { plan.pts.reverse(); plan._pts.reverse(); }
+  { const P2 = plan.pts, e = P2[P2.length - 1], f = P2[P2.length - 2], l = Math.hypot(e.x - f.x, e.z - f.z) || 1; plan.angB = angInfo(rev ? A : B, (f.x - e.x) / l, (f.z - e.z) / l); }
   // her parçayı ayrı ayrı denetle
-  for (let i = 0; i < n; i++) {
-    const p = planRoad(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], type);
-    if (!p.ok && p.msg !== 'Yeterli paran yok' && !(i > 0 && p.msg === 'Açı çok dar')) { plan.msg = p.msg; plan.pieces.push(p); return plan; }
+  const PP = plan._pts;
+  for (let i = 0; i < PP.length - 1; i++) {
+    const p = planRoad(PP[i].P.x, PP[i].P.z, PP[i + 1].P.x, PP[i + 1].P.z, type, { freeA: !!PP[i].free, freeB: !!PP[i + 1].free });
+    const benign = p.msg === 'Yeterli paran yok' || (PP[i].free && p.msg === 'Açı çok dar');
+    if (!p.ok && !benign) { plan.msg = p.msg; return plan; }
     plan.pieces.push(p); plan.cost += p.cost; plan.bridge += p.bridge;
   }
   if (S.money < plan.cost) { plan.msg = 'Yeterli paran yok'; return plan; }
@@ -377,9 +409,9 @@ export function planCurve(x0, z0, x1, z1, type) {
 }
 export function commitCurve(plan) {
   if (!plan.ok) return false;
-  const P = plan.pts; let spent = 0;
+  const P = plan._pts; let spent = 0;
   for (let i = 0; i < P.length - 1; i++) {
-    const p = planRoad(P[i].x, P[i].z, P[i + 1].x, P[i + 1].z, plan.type);
+    const p = planRoad(P[i].P.x, P[i].P.z, P[i + 1].P.x, P[i + 1].P.z, plan.type, { freeB: !!P[i + 1].free });
     if (!p.ok) break;
     commitRoad(p); spent += p.cost;
   }
@@ -428,6 +460,7 @@ export function makeRoundabout(nodeId) {
   rebuildAll(); return true;
 }
 
+export function flipSeg(id) { const s = R.segs.get(id); if (!s) return; [s.a, s.b] = [s.b, s.a]; s.o = 0; rebuildAll(); }
 export function upgradeCost(id, type) { const g = segGeo(id), s = R.segs.get(id); return Math.max(0, Math.ceil(g.L * (ROADS[type].cost - ROADS[s.t].cost * .5))); }
 export function upgradeSeg(id, type) {
   const s = R.segs.get(id); if (!s || s.t === type) return 'same';
@@ -461,7 +494,7 @@ export function deleteSeg(id) {
 function segLenRaw(s) { const A = R.nodes.get(s.a), B = R.nodes.get(s.b); return A && B ? Math.hypot(B.x - A.x, B.z - A.z) : 0; }
 
 // ---------------- kavşak geometrisi ----------------
-export const SIDEW = { dirt: 0, street: 40 / 256, avenue: 26 / 256, highway: 0 }; // kaldırım oranı (genişliğe göre)
+export const SIDEW = { dirt: 0, oneway: 48 / 256, street: 40 / 256, avenue: 26 / 256, highway: 0 }; // kaldırım oranı (genişliğe göre)
 export function computeJunctions() {
   R.junc = new Map();
   for (const N of R.nodes.values()) {
@@ -534,6 +567,12 @@ export function computeJunctions() {
     R.junc.set(N.id, { trims, poly, curbs, mouths, dirt: L.every(r => r.t === 'dirt'), n });
   }
 }
+export function ctlOf(nodeId) {
+  const N = R.nodes.get(nodeId), J = R.junc && R.junc.get(nodeId); if (!N || !J || J.n < 3 || N.h) return 'none';
+  if (N.ctl) return N.ctl;
+  return J.mouths.some(m => m.t === 'street' || m.t === 'avenue') ? 'light' : 'stop';
+}
+export function setCtl(nodeId, c) { const N = R.nodes.get(nodeId); if (N) { N.ctl = c; R.dirty.roads = true; } }
 export function trimAt(nodeId, sid) { const j = R.junc && R.junc.get(nodeId); return j ? (j.trims.get(sid) || 0) : 0; }
 
 // ---------------- doluluk ızgarası ----------------
@@ -936,6 +975,7 @@ export function findPath(from, to) {
     if (n === to) break;
     for (const sid of adjOf(n)) {
       const s = R.segs.get(sid), o = s.a === n ? s.b : s.a, g = segGeo(sid);
+      if (ROADS[s.t].oneway && s.a !== n) continue;
       const nd = d + g.L / ROADS[s.t].speed;
       if (nd < (dist.get(o) ?? Infinity)) { dist.set(o, nd); prev.set(o, n); push(nd, o); }
     }

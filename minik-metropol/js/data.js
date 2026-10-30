@@ -8,12 +8,13 @@ export const START_TILE = 12;    // ortadaki parça (2,2)
 export const FH = 0.38;          // kat yüksekliği
 
 export const ROADS = {
+  oneway: { n: 'Tek yön (tek şerit)', i: '⬆️', w: 1.15, cost: 4, up: 0.003, speed: 1.2, lanes: 1, zone: true, oneway: true, ms: 0 },
   dirt: { n: 'Toprak yol', i: '🟫', w: 1.0, cost: 2, up: 0.002, speed: 0.9, lanes: 1, zone: true, ms: 0 },
   street: { n: 'Cadde', i: '🛣️', w: 1.6, cost: 5, up: 0.004, speed: 1.4, lanes: 1, zone: true, ms: 0 },
   avenue: { n: 'Bulvar', i: '🛤️', w: 2.6, cost: 12, up: 0.008, speed: 1.9, lanes: 2, zone: true, ms: 1 },
   highway: { n: 'Otoban', i: '🛣️', w: 3.4, cost: 25, up: 0.014, speed: 3.0, lanes: 2, zone: false, noise: true, ms: 2 },
 };
-export const ROAD_ORDER = ['dirt', 'street', 'avenue', 'highway'];
+export const ROAD_ORDER = ['dirt', 'oneway', 'street', 'avenue', 'highway'];
 
 // per: hücre başına kişi (konut) ya da iş (diğerleri), seviyeye göre
 export const ZONES = {

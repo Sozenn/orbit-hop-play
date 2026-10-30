@@ -155,7 +155,7 @@ export function initMaterials() {
 export function roadTexture(type) {
   const S2 = 256;
   return canvasTex(S2, S2, g => {
-    const sw = type === 'dirt' ? 0 : type === 'highway' ? 0 : type === 'avenue' ? 26 : 40;
+    const sw = type === 'dirt' ? 0 : type === 'highway' ? 0 : type === 'avenue' ? 26 : type === 'oneway' ? 48 : 40;
     if (type === 'dirt') {
       g.fillStyle = '#9b7b55'; g.fillRect(0, 0, S2, S2); noise(g, S2, S2, 4000, ['#8a6c48', '#a98a62', '#7d6142', '#b09068'], 3);
       g.fillStyle = 'rgba(70,50,30,.25)'; g.fillRect(56, 0, 28, S2); g.fillRect(172, 0, 28, S2);
@@ -168,7 +168,11 @@ export function roadTexture(type) {
     g.fillStyle = '#3e4147'; g.fillRect(sw, 0, S2 - 2 * sw, S2);
     g.save(); g.beginPath(); g.rect(sw, 0, S2 - 2 * sw, S2); g.clip(); noise(g, S2, S2, 3000, ['#46494f', '#36393e', '#4c4f55', '#303338'], 2); g.restore();
     const C = S2 / 2;
-    if (type === 'street') {
+    if (type === 'oneway') {
+      g.fillStyle = '#f2f2ee'; g.fillRect(sw + 6, 0, 3, S2); g.fillRect(S2 - sw - 9, 0, 3, S2);
+      // yön oku (v artınca a->b yönü; tuvalde yukarı = +v)
+      g.beginPath(); g.moveTo(C, 70); g.lineTo(C - 22, 110); g.lineTo(C - 8, 110); g.lineTo(C - 8, 170); g.lineTo(C + 8, 170); g.lineTo(C + 8, 110); g.lineTo(C + 22, 110); g.closePath(); g.fill();
+    } else if (type === 'street') {
       g.fillStyle = '#f2f2ee'; for (let y = 8; y < S2; y += 64) g.fillRect(C - 3, y, 6, 34); g.fillRect(sw + 8, 0, 3, S2); g.fillRect(S2 - sw - 11, 0, 3, S2);
     } else if (type === 'avenue') {
       g.fillStyle = '#6f9e4a'; g.fillRect(C - 9, 0, 18, S2); g.fillStyle = '#d9d5c9'; g.fillRect(C - 11, 0, 2, S2); g.fillRect(C + 9, 0, 2, S2);
