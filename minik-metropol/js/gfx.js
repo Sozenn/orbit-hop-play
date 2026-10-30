@@ -659,6 +659,16 @@ export function setGhostRoad(plan) {
     const hy = plan.elev ? ((i > 0 ? 1 : 0) + (i < P.length - 2 ? 1 : 0)) * .55 : 0;
     m.position.set((A.x + B.x) / 2, .06 + hy, (A.z + B.z) / 2); m.rotation.y = Math.atan2(B.x - A.x, B.z - A.z); m.renderOrder = 4; ghost.add(m);
   }
+  // açı yayları
+  const P0 = (plan.curve || plan.elev) ? plan.pts : [plan.A, plan.B];
+  for (const [ri, p0] of [[plan.refA, P0[0]], [plan.refB, P0[P0.length - 1]]]) {
+    if (!ri || !p0) continue;
+    const a1 = Math.atan2(ri.ref[1], ri.ref[0]), a2 = Math.atan2(ri.dir[1], ri.dir[0]); let d = a2 - a1; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
+    const r = w / 2 + 1.1, start = d >= 0 ? a1 : a1 + d;
+    const geo = new THREE.RingGeometry(r - .1, r, 32, 1, 0, Math.abs(d)); geo.rotateX(Math.PI / 2); // x-z düzlemi, açı +x'ten +z'ye
+    const m = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffd65a, side: THREE.DoubleSide, depthTest: false, transparent: true }));
+    m.rotation.y = -start; m.position.set(p0.x, .1, p0.z); m.renderOrder = 6; ghost.add(m);
+  }
   const marks = (plan.curve || plan.elev) ? [plan.A, plan.B] : (plan.pts.length ? plan.pts : [plan.A, plan.B]);
   for (const p of marks) { const d = new THREE.Mesh(new THREE.RingGeometry(w / 2 + .05, w / 2 + .25, 24).rotateX(-Math.PI / 2), ghostMat); d.position.set(p.x, .07, p.z); d.renderOrder = 4; ghost.add(d); }
 }

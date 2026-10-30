@@ -187,6 +187,10 @@ function refDirs(P) {
   else if (P.split) { const g = segGeo(P.split); out.push([g.ux, g.uz], [-g.ux, -g.uz]); }
   return out;
 }
+export function angRef(P, vx, vz) {
+  let best = null, m = 181; for (const r of refDirs(P)) { const a = Math.acos(clamp(r[0] * vx + r[1] * vz, -1, 1)) * 180 / Math.PI; if (a < m) { m = a; best = r; } }
+  return best ? { ref: best, dir: [vx, vz] } : null;
+}
 export function angInfo(P, vx, vz) {
   const refs = refDirs(P); if (!refs.length) return null;
   let m = 180; for (const r of refs) { const a = Math.acos(clamp(r[0] * vx + r[1] * vz, -1, 1)) * 180 / Math.PI; m = Math.min(m, a); }
@@ -207,7 +211,7 @@ export function planRoad(x0, z0, x1, z1, type, opts = {}) {
     const B2 = resolvePoint(B.x, B.z, type); if (B2.node || B2.split) B = B2;
   }
   const plan = { ok: false, msg: '', cost: 0, A, B, pts: [], len: 0, bridge: 0, type };
-  { const dx = B.x - A.x, dz = B.z - A.z, L0 = Math.hypot(dx, dz) || 1; plan.angA = angInfo(A, dx / L0, dz / L0); plan.angB = angInfo(B, -dx / L0, -dz / L0); }
+  { const dx = B.x - A.x, dz = B.z - A.z, L0 = Math.hypot(dx, dz) || 1; plan.angA = angInfo(A, dx / L0, dz / L0); plan.angB = angInfo(B, -dx / L0, -dz / L0); plan.refA = angRef(A, dx / L0, dz / L0); plan.refB = angRef(B, -dx / L0, -dz / L0); }
   const dx = B.x - A.x, dz = B.z - A.z, L = Math.hypot(dx, dz);
   plan.len = L;
   if (L < 1.6) { plan.msg = 'Yol çok kısa'; return plan; }
@@ -306,7 +310,7 @@ export function planElevated(x0, z0, x1, z1, type) {
   if (A.node && B.node && A.node === B.node) { plan.msg = 'Yol çok kısa'; return plan; }
   const A2 = needA ? { x: A.x + ux * RAMP_L, z: A.z + uz * RAMP_L } : A, B2 = needB ? { x: B.x - ux * RAMP_L, z: B.z - uz * RAMP_L } : B;
   plan.pts = [A, ...(needA ? [A2] : []), ...(needB ? [B2] : []), B];
-  plan.angA = angInfo(A, ux, uz); plan.angB = angInfo(B, -ux, -uz);
+  plan.angA = angInfo(A, ux, uz); plan.angB = angInfo(B, -ux, -uz); plan.refA = angRef(A, ux, uz); plan.refB = angRef(B, -ux, -uz);
   // uç açıları (zemin düğümleri)
   for (const [P, vx, vz] of [[A, ux, uz], [B, -ux, -uz]]) {
     if (P.node) for (const id of adjOf(P.node)) { const s = R.segs.get(id), o = R.nodes.get(s.a === P.node ? s.b : s.a), N = R.nodes.get(P.node); const ex = o.x - N.x, ez = o.z - N.z, el = Math.hypot(ex, ez); if ((ex * vx + ez * vz) / el > Math.cos(MINANG)) { plan.msg = 'Açı çok dar'; return plan; } }
@@ -395,7 +399,7 @@ export function planCurve(x0, z0, x1, z1, type, ctrl) {
   }
   plan.pts = pts.map(p => ({ x: p.P.x, z: p.P.z })); plan.len = alen; plan._pts = pts;
   if (rev) { plan.pts.reverse(); plan._pts.reverse(); }
-  { const P2 = plan.pts, e = P2[P2.length - 1], f = P2[P2.length - 2], l = Math.hypot(e.x - f.x, e.z - f.z) || 1; plan.angB = angInfo(rev ? A : B, (f.x - e.x) / l, (f.z - e.z) / l); }
+  { const P2 = plan.pts, e = P2[P2.length - 1], f = P2[P2.length - 2], l = Math.hypot(e.x - f.x, e.z - f.z) || 1; plan.angB = angInfo(rev ? A : B, (f.x - e.x) / l, (f.z - e.z) / l); plan.refB = angRef(rev ? A : B, (f.x - e.x) / l, (f.z - e.z) / l); const s0 = P2[0], s1 = P2[1], l1 = Math.hypot(s1.x - s0.x, s1.z - s0.z) || 1; plan.angA = angInfo(rev ? B : A, (s1.x - s0.x) / l1, (s1.z - s0.z) / l1); plan.refA = angRef(rev ? B : A, (s1.x - s0.x) / l1, (s1.z - s0.z) / l1); }
   // her parçayı ayrı ayrı denetle
   const PP = plan._pts;
   for (let i = 0; i < PP.length - 1; i++) {

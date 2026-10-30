@@ -71,3 +71,8 @@ input[type=range]{width:100%}
 #feed b{color:#ffd65a}
 #legend{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 128px);display:none;font-size:12px;z-index:5}
 #legend i{display:inline-block;width:10px;height:10px;border-radius:5px;margin:0 3px 0 8px;vertical-align:-1px}
+
+.rtag{position:fixed;z-index:8;pointer-events:none;display:none;transform:translate(-50%,-150%);background:rgba(14,24,36,.9);border-radius:10px;padding:4px 8px;font-size:13px;font-weight:800;white-space:nowrap;border:1px solid rgba(255,255,255,.2)}
+.rtag.right{background:#2e7d32;border-color:#9ff59f}
+.rtag.len{transform:translate(-50%,40%);color:#e8fbe8}
+.rtag.bad{transform:translate(-50%,40%);background:rgba(170,40,30,.92);white-space:normal;max-width:220px;text-align:center}

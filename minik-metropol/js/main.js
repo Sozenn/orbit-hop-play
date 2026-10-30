@@ -307,6 +307,17 @@ function angTxt(p) {
   const a = f(p.angA), b = f(p.angB);
   return a || b ? '<br>∠ ' + [a && 'başlangıç ' + a, b && 'bitiş ' + b].filter(Boolean).join(' · ') : '';
 }
+function roadTags(plan) {
+  const ids = ['tagA', 'tagB', 'tagM'];
+  if (!plan) { for (const i of ids) $(i).style.display = 'none'; return; }
+  const P = (plan.curve || plan.elev) && plan.pts && plan.pts.length ? plan.pts : [plan.A, plan.B];
+  const A = P[0], B = P[P.length - 1], M = P[Math.floor(P.length / 2)] && P.length > 2 ? P[Math.floor(P.length / 2)] : { x: (A.x + B.x) / 2, z: (A.z + B.z) / 2 };
+  const put = (id, pt, html, cls) => { const s = pt && G.project(pt.x, .3, pt.z); const el = $(id); if (!s || !html) { el.style.display = 'none'; return; } el.style.display = 'block'; el.style.left = s[0] + 'px'; el.style.top = s[1] + 'px'; el.innerHTML = html; el.className = 'rtag ' + (cls || ''); };
+  const ang = a => a === null || a === undefined ? '' : a === 90 ? '∠ 90° ✓' : '∠ ' + a + '°';
+  put('tagA', A, ang(plan.angA), plan.angA === 90 ? 'right' : '');
+  put('tagB', B, ang(plan.angB), plan.angB === 90 ? 'right' : '');
+  put('tagM', M, plan.ok ? `${plan.elev ? '🌉 ' : plan.curve ? '〰️ ' : ''}${(plan.len * 8).toFixed(0)} m · 💰 ${fmt(plan.cost)}` : '⚠️ ' + plan.msg, plan.ok ? 'len' : 'bad');
+}
 function costTag(x, y, txt, ok) { const t = $('costTag'); if (!txt) { t.style.display = 'none'; return; } t.style.display = 'block'; t.style.left = x + 'px'; t.style.top = y + 'px'; t.innerHTML = txt; t.style.color = ok ? '#9ff59f' : '#ff9a8a'; }
 function actionDown(x, y) {
   const g = groundAt(x, y); if (!g || !S()) return;
@@ -352,11 +363,11 @@ cv.addEventListener('pointermove', e => {
     if (far) GS.moved = true;
     const g = groundAt(e.clientX, e.clientY); if (!g) return;
     if (cat === 'road' && item === 'round') { const n = Wd.roundaboutAt(g[0], g[1]); G.setGhostNode(n, !!n); }
-    else if (cat === 'road' && curveMode && curveA) { GS.plan = Wd.planCurve(curveA.A[0], curveA.A[1], g[0], g[1], item, curveA.C); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `〰️ ${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${angTxt(GS.plan)}` : GS.plan.msg, GS.plan.ok); edgePan(e.clientX, e.clientY); }
+    else if (cat === 'road' && curveMode && curveA) { GS.plan = Wd.planCurve(curveA.A[0], curveA.A[1], g[0], g[1], item, curveA.C); G.setGhostRoad(GS.plan); roadTags(GS.plan); edgePan(e.clientX, e.clientY); }
     else if (cat === 'road' && GS.moved && GS.start) {
       edgePan(e.clientX, e.clientY);
       if (curveMode) { const t = Wd.planCurve(GS.start[0], GS.start[1], g[0], g[1], item); GS.curveStage1 = !!t.noTangent; GS.plan = t.noTangent ? Object.assign(planRoad(GS.start[0], GS.start[1], g[0], g[1], item), { stage1: true }) : t; }
-      else GS.plan = elevMode ? Wd.planElevated(GS.start[0], GS.start[1], g[0], g[1], item) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? `${GS.plan.elev ? '🌉 ' : ''}${(GS.plan.len * 8).toFixed(0)} m · 💰 ${fmt(GS.plan.cost)}${GS.plan.bridge ? ' · 🌉 köprü' : ''}${angTxt(GS.plan)}` : GS.plan.msg, GS.plan.ok); }
+      else GS.plan = elevMode ? Wd.planElevated(GS.start[0], GS.start[1], g[0], g[1], item) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); roadTags(GS.plan); }
     else if (cat === 'zone') doPaint(g);
     else if (cat === 'bull') doBull(g, false);
     else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans') { GS.plan = planSvc(g[0], g[1], item, svcRot); G.setGhostBld(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
@@ -390,7 +401,7 @@ function endPtr(e) {
         curveA = null; G.clearGhost();
       } else if (cat === 'road' && curveMode && GS.moved && GS.plan && GS.plan.stage1) {
         curveA = { A: [GS.plan.A.x, GS.plan.A.z], C: [GS.plan.B.x, GS.plan.B.z] };
-        G.setGhostRoad(GS.plan); toast('〰️ Kavis yönü tamam. Şimdi bitiş noktasına sürükle ya da dokun.', 3000); sfx('tap');
+        G.setGhostRoad(GS.plan); setTimeout(() => roadTags(GS && GS.plan || null), 0); toast('〰️ Kavis yönü tamam. Şimdi bitiş noktasına sürükle ya da dokun.', 3000); sfx('tap');
       } else if (cat === 'road') {
         if (GS.moved && GS.plan) { if (GS.plan.ok) { pushUndo(); if (GS.plan.elev) Wd.commitElevated(GS.plan); else if (GS.plan.curve) Wd.commitCurve(GS.plan); else commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
         else if (!GS.moved && g && item !== 'round') { const ns = nearestSeg(g[0], g[1], .3); if (ns && ns.d <= ns.hw + .3) { const s = R.segs.get(ns.id); if (s.t === item) showInfo({ kind: 'seg', id: ns.id }); else { pushUndo(); const r = upgradeSeg(ns.id, item); if (r === true) { sfx('road'); toast(`${ROADS[item].i} Yol ${ROADS[item].n} oldu`); afterChange(); } else { toast(r); sfx('err'); } } } }
@@ -400,7 +411,7 @@ function endPtr(e) {
         G.clearGhost();
       } else if (cat === 'zone' && e.pointerType !== 'mouse') G.clearGhost();
     }
-    costTag(); GS = null; edgeVX = edgeVY = 0;
+    costTag(); roadTags(null); GS = null; edgeVX = edgeVY = 0;
   } else if (ptrs.size === 1) { const [p] = [...ptrs.values()]; GS = { mode: 'pan', sx: p.x, sy: p.y, moved: true, grab: groundAt(p.x, p.y) }; }
 }
 cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
