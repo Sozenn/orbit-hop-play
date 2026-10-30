@@ -607,9 +607,11 @@ addEventListener('pagehide', save);
 addEventListener('resize', G.resize);
 
 // ---------- döngü ----------
-let lastT = performance.now(), acc = 0;
+let lastT = performance.now(), acc = 0, fpsAcc = 0, fpsN = 0, fpsChecked = false;
 function frame(tm) {
   const dtMs = Math.min(100, tm - lastT); lastT = tm; const dt = dtMs / 1000;
+  if (running && !fpsChecked && !document.hidden) { fpsAcc += tm - (frame.prev || tm); fpsN++; if (fpsN > 240) { const fps = 1000 / (fpsAcc / fpsN); fpsChecked = true; if (fps < 26 && OPT.gfx === 'high') { OPT.gfx = 'low'; saveOpt(); G.setQuality(false); toast('⚡ Telefonun için grafik "Hızlı" moda alındı (menüden değiştirebilirsin)', 3500); } } }
+  frame.prev = tm;
   let simDt = 0;
   if (S() && (running || isPreview) && !paused) {
     if (running) { acc += dtMs * speed; let n = 0; while (acc >= 1000 && n++ < 4) { acc -= 1000; Wd.tick(); if (S().tk % 30 === 0) save(); afterChange(); feed(); checkQuests(); events(); } if (acc > 3000) acc = 0; }
@@ -639,4 +641,4 @@ async function boot() {
   requestAnimationFrame(frame);
 }
 boot();
-window.__mm = { Wd, R, G, cam, selCat, afterChange, get S() { return Wd.S; }, startGame: () => startGame() };
+window.__mm = { Wd, R, G, cam, updCam, selCat, afterChange, get S() { return Wd.S; }, startGame: () => startGame() };

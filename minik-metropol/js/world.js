@@ -10,7 +10,7 @@ export function rng(seed) { let s = seed >>> 0; return () => { s = (Math.imul(s,
 export let S = null;              // kaydedilen durum
 export const R = {                // çalışma zamanı türetilmiş veriler
   nodes: new Map(), segs: new Map(), adj: new Map(), sg: new Map(),
-  cells: new Map(), cellByKey: new Map(), cellHash: new Map(), segHash: new Map(),
+  cells: new Map(), cellByKey: new Map(), cellHash: new Map(), cellObjHash: new Map(), segHash: new Map(),
   blds: new Map(), occ: new Uint8Array(WORLD * WORLD), water: new Uint8Array(WORLD * WORLD),
   conn: new Set(), forest: [],
   st: {}, events: [], dirty: { roads: true, cells: true, blds: true, trees: true, tiles: true },
@@ -357,7 +357,7 @@ export function planElevated(x0, z0, x1, z1, type, under = false) {
       const s = R.segs.get(id); if (skipN.has(s.a) || skipN.has(s.b)) { if (nearEnd) continue; }
       const lv = level(s), g = segGeo(id), d = distSeg(x, z, g).d;
       if (high) { if (lv !== 'g' && d < g.hw + hw + .1) { plan.msg = 'Başka bir köprüye çok yakın'; return plan; } }
-      else if (!nearEnd && d < g.hw + hw + .1) { plan.msg = 'Rampa başka bir yolla çakışıyor'; return plan; }
+      else if (!nearEnd && d < g.hw + hw + .1) { plan.msg = 'Rampa bir yolu kesiyor: ' + (under ? 'alt geçidi' : 'köprüyü') + ' kesişecek yoldan en az ' + Math.ceil((RL + 1) * 8) + ' m önce başlat'; return plan; }
     }
     const oi = gi(x, z); if ((!high || under) && oi >= 0 && R.occ[oi] === 2) { plan.msg = 'Önünde bir bina var'; return plan; }
     if (under && isWater(x, z)) { plan.msg = 'Alt geçit suyun altından geçemez'; return plan; }
@@ -659,7 +659,7 @@ function buildOcc() {
 const ckey = (seg, side, k, row) => seg + '|' + side + '|' + k + '|' + row;
 const pkey = (x, z) => Math.round(x * 4) + ',' + Math.round(z * 4);
 function cellsNear(x, z) { return R.cellHash.get(hkey(x, z, 1)) || []; }
-function addCellHash(c) { const k = hkey(c.x, c.z, 1); let a = R.cellHash.get(k); if (!a) R.cellHash.set(k, a = []); a.push(c.id); }
+function addCellHash(c) { const k = hkey(c.x, c.z, 1); let a = R.cellHash.get(k); if (!a) R.cellHash.set(k, a = []); a.push(c.id); let b = R.cellObjHash.get(k); if (!b) R.cellObjHash.set(k, b = []); b.push(c); }
 function cellBlocked(x, z, sid) {
   if (!unlocked(x, z)) return true;
   for (const d of (S.deco || [])) if (Math.hypot(x - d.x, z - d.z) < d.r + .6) return true;
@@ -667,21 +667,19 @@ function cellBlocked(x, z, sid) {
     const i = gi(x + ox, z + oz); if (i < 0) return true;
     const o = R.occ[i]; if (o === 2 || (o === 3 && ox === 0)) return true;
   }
-  const seen = new Set();
-  for (const dx of [-1, 0, 1]) for (const dz of [-1, 0, 1]) for (const id of segsNear(x + dx * HB, z + dz * HB)) {
-    if (id === sid || seen.has(id)) continue; seen.add(id);
-    const g = segGeo(id); if (distSeg(x, z, g).d < g.hw + .55) return true;
+  for (const id of segsNear(x, z)) { // kova, yolun sınır kutusunu (genişlik + 1) zaten kapsar
+    if (id === sid) continue;
+    const g = segGeo(id); let t = (x - g.ax) * g.ux + (z - g.az) * g.uz; t = t < 0 ? 0 : t > g.L ? g.L : t;
+    const ddx = x - g.ax - g.ux * t, ddz = z - g.az - g.uz * t, r = g.hw + .55; if (ddx * ddx + ddz * ddz < r * r) return true;
   }
-  for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) for (const cid of cellsNear(x + ix, z + iz)) {
-    const c = R.cells.get(cid); if (Math.abs(c.x - x) < .9 && Math.abs(c.z - z) < .9 && Math.hypot(c.x - x, c.z - z) < .82) return true;
-  }
+  for (let ix = -1; ix <= 1; ix++) for (let iz = -1; iz <= 1; iz++) { const a = R.cellObjHash.get(hkey(x + ix, z + iz, 1)); if (a) for (const c of a) { const ddx = c.x - x, ddz = c.z - z; if (ddx * ddx + ddz * ddz < .6724) return true; } }
   return false;
 }
 function buildCells(oldZones) {
   // eski bölge bilgisi
   const keep = oldZones ? new Map(Object.entries(oldZones)) : new Map();
   if (!oldZones) for (const c of R.cells.values()) if (c.zt) keep.set(c.pk, c.zt);
-  R.cells.clear(); R.cellByKey.clear(); R.cellHash.clear(); nextCell = 1;
+  R.cells.clear(); R.cellByKey.clear(); R.cellHash.clear(); R.cellObjHash.clear(); nextCell = 1;
   const ids = [...R.segs.keys()].sort((a, b) => a - b);
   for (const sid of ids) {
     const s = R.segs.get(sid); if (!ROADS[s.t].zone || level(s) !== 'g') continue;
@@ -791,17 +789,26 @@ function spawnZone(zt) {
 // Hizmet binası yerleştirme planı
 export function planSvc(x, z, sid, rot = 0) {
   const D = SVC[sid];
-  const ns = nearestSeg(x, z, 5 + Math.max(D.w, D.d) / 2, s => s.t !== 'highway' && isGround(s));
   const odd = rot % 2 === 1, FW = odd ? D.d : D.w, FD = odd ? D.w : D.d;
   const p = { ok: false, msg: '', x, z, a: 0, w: D.w, d: D.d, svc: sid, cost: D.cost, rot };
-  if (!ns) { p.msg = 'Bir yolun yanına koy'; return p; }
+  // en yakın uygun yol (çok kısa parçaları atla: döner kavşak halkası, eğri parçaları)
+  const maxD = 5 + Math.max(D.w, D.d) / 2; let ns = null, short = false;
+  const seen = new Set();
+  for (const dx of [-1, 0, 1]) for (const dz of [-1, 0, 1]) for (const id of segsNear(x + dx * HB, z + dz * HB)) {
+    if (seen.has(id)) continue; seen.add(id);
+    const sg = R.segs.get(id); if (sg.t === 'highway' || !isGround(sg)) continue;
+    const g0 = segGeo(id), r0 = distSeg(x, z, g0); if (r0.d > maxD + g0.hw) continue;
+    if (g0.L < Math.min(FW + .6, 2.4)) { short = true; continue; }
+    if (!ns || r0.d - g0.hw < ns.d - ns.hw) ns = { id, ...r0, hw: g0.hw, g: g0 };
+  }
+  if (!ns) { p.msg = short ? 'Bu yol parçası çok kısa, biraz ileriye koy' : 'Bir yolun yanına koy'; return p; }
   const g = ns.g, side = Math.sign((x - ns.px) * g.nx + (z - ns.pz) * g.nz) || 1;
   const want = Math.hypot(x - ns.px, z - ns.pz);
   const off = clamp(want, g.hw + FD / 2 + .15, g.hw + FD / 2 + 4);
-  const t = clamp(ns.t, FW / 2 + .3, g.L - FW / 2 - .3);
+  const t = g.L >= FW + .6 ? clamp(ns.t, FW / 2 + .3, g.L - FW / 2 - .3) : g.L / 2;
   p.x = g.ax + g.ux * t + g.nx * off * side; p.z = g.az + g.uz * t + g.nz * off * side;
   p.a = Math.atan2(-g.nx * side, -g.nz * side) + rot * Math.PI / 2; p.seg = ns.id;
-  if (g.L < FW + .6) { p.msg = 'Yol bu bina için çok kısa'; return p; }
+
   const ca = Math.cos(p.a), sa = Math.sin(p.a);
   for (let lx = -D.w / 2 + .2; lx < D.w / 2; lx += .4) for (let lz = -D.d / 2 + .2; lz < D.d / 2; lz += .4) {
     const wx = p.x + lx * ca + lz * sa, wz = p.z - lx * sa + lz * ca;

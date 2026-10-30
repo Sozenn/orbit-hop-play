@@ -567,8 +567,8 @@ export function buildTrees() {
     if (pine) { pineIM.setMatrixAt(np, _mt); pineIM.setColorAt(np++, _c.setHSL(.33 + h * .05, .45, .22 + h * .08)); }
     else { leafIM.setMatrixAt(nl, _mt); leafIM.setColorAt(nl++, _c.setHSL(.22 + h * .1, .5, .3 + h * .12)); }
   };
-  for (const t of outsideTrees) put(...t);
-  for (const [x, z, sc, pine, h] of R.forest) { const i = gi(x, z); if (i >= 0 && R.occ[i] === 0) put(x, z, sc, pine, h); }
+  let kk = 0; for (const t of outsideTrees) if (!lowQ || (kk++ % 3 === 0)) put(...t);
+  kk = 0; for (const [x, z, sc, pine, h] of R.forest) { if (lowQ && (kk++ % 2)) continue; const i = gi(x, z); if (i >= 0 && R.occ[i] === 0) put(x, z, sc, pine, h); }
   _s.set(1, 1, 1);
   trunkIM.count = nt; leafIM.count = nl; pineIM.count = np;
   for (const im of [trunkIM, leafIM, pineIM]) { im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; im.computeBoundingSphere(); }
@@ -1017,7 +1017,9 @@ function patchScene() {
   });
 }
 export function render() { if (--patchT <= 0) { patchScene(); patchT = 30; } renderer.render(scene, camera); }
+let lowQ = false;
 export function setQuality(hi) {
+  lowQ = !hi; if (R.forest) buildTrees();
   renderer.setPixelRatio(Math.min(hi ? 2 : 1.25, window.devicePixelRatio || 1));
   renderer.shadowMap.enabled = hi; sun.castShadow = hi;
   if (sun.shadow.map) { sun.shadow.map.dispose(); sun.shadow.map = null; }
