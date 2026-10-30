@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="description" content="Minik Metropol - telefonda oynanan 3D şehir kurma oyunu">
 <title>Minik Metropol</title>
-<link rel="stylesheet" href="style.css?v=3.7.0">
+<link rel="stylesheet" href="style.css?v=3.8.0">
 </head>
 <body>
 <div id="top">
@@ -41,6 +41,7 @@
 
 <div id="rot">
   <button class="ib" id="bLock" aria-label="Kaydır/Çiz" style="display:none">✏️</button>
+  <button class="ib" id="bQuest" aria-label="Görevler">🎯</button>
   <button class="ib" id="bUndo" aria-label="Geri al">↶</button>
   <button class="ib" id="bView" aria-label="Görünüm">👁️</button>
   <button class="ib" id="bRotL" aria-label="Sola döndür">⟲</button>
@@ -53,6 +54,7 @@
   <div id="cats"></div>
 </div>
 <div class="pill" id="info"><button class="x" id="infoX">✕</button><div id="infoBody"></div></div>
+<div class="pill" id="questPanel"><button class="x" id="questX">✕</button><div id="questBody"></div></div>
 <div class="pill" id="statsPanel"><button class="x" id="statsX">✕</button><div id="statsBody"></div></div>
 <div class="pill" id="toast"></div>
 <div id="costTag"></div>
@@ -70,8 +72,10 @@
     <button class="btn" id="mCont" style="display:none">Devam et</button>
     <button class="btn" id="mNew" style="display:none">Yeni şehir</button>
     <div id="maps" style="display:none"></div>
+    <button class="btn sec" id="mPhoto" style="display:none">📷 Fotoğraf modu</button>
     <button class="btn sec" id="mHelp">Nasıl oynanır?</button>
     <div class="opts">
+      <button class="chip" id="oMusic">🎵 Müzik: Açık</button>
       <button class="chip" id="oSound">🔊 Ses: Açık</button>
       <button class="chip" id="oGfx">✨ Grafik: Yüksek</button>
     </div>
@@ -93,9 +97,9 @@
         <li>Tek parmak: işlem · İki parmak: kaydır, yakınlaştır, döndür.</li>
       </ul>
     </div>
-    <div class="ver">v3.7</div>
+    <div class="ver">v3.8</div>
   </div>
 </div>
-<script type="module" src="js/main.js?v=3.7.0"></script>
+<script type="module" src="js/main.js?v=3.8.0"></script>
 </body>
 </html>

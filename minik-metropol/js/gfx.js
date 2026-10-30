@@ -343,6 +343,7 @@ export function buildRoads() {
     }
   }
   lampPole.count = lampHead.count = ln;
+  for (let i = 0; i < ln; i++) { lampPole.getMatrixAt(i, _mt); glowIM.setMatrixAt(i, _mt); } glowIM.count = ln; glowIM.instanceMatrix.needsUpdate = true; glowIM.computeBoundingSphere();
   lampPole.instanceMatrix.needsUpdate = lampHead.instanceMatrix.needsUpdate = true;
   lampPole.computeBoundingSphere(); lampHead.computeBoundingSphere();
   for (const [t, arr] of Object.entries(per)) { const m = new THREE.Mesh(toGeometry(arr), roadMats[t]); m.receiveShadow = true; roadGroup.add(m); }
@@ -732,9 +733,10 @@ export function updTraffic(dt) {
     if ((c.kind === 'fire' || c.kind === 'amb' || c.kind === 'pol') && ns < 40) { _q.setFromAxisAngle(_Y, c.ry || 0); _mt.compose(_p.set(c.x, .03 + (c.y || 0), c.z), _q, _s.set(1, 1, 1)); sirIM.setMatrixAt(ns, _mt); sirIM.setColorAt(ns, _c.set(flash ? (c.kind === 'fire' ? '#ffeb3b' : '#ff1744') : '#2979ff')); ns++; }
     const im = vehIM[c.vt || 'sedan'], k2 = cnt[c.vt || 'sedan'] || 0; if (k2 >= im.instanceMatrix.count) continue;
     _q.setFromAxisAngle(_Y, c.ry || 0); _mt.compose(_p.set(c.x, .025 + (c.y || 0), c.z), _q, _s.set(1, 1, 1));
-    im.setMatrixAt(k2, _mt); im.setColorAt(k2, _c.set(c.col)); cnt[c.vt || 'sedan'] = k2 + 1; n++;
+    im.setMatrixAt(k2, _mt); im.setColorAt(k2, _c.set(c.col)); cnt[c.vt || 'sedan'] = k2 + 1; if (n < MAXC) headIM.setMatrixAt(n, _mt); n++;
   }
   sirIM.count = ns; sirIM.instanceMatrix.needsUpdate = true; if (sirIM.instanceColor) sirIM.instanceColor.needsUpdate = true;
+  headIM.count = night > .2 ? n : 0; headIM.instanceMatrix.needsUpdate = true;
   for (const [k, im] of Object.entries(vehIM)) { im.count = cnt[k] || 0; im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true; }
 }
 export function clearTraffic() { cars = []; }
@@ -789,6 +791,51 @@ const clouds = [];
   }
 }
 
+// ---------- havai fişek ----------
+const FWN = 2400, fwPos = new Float32Array(FWN * 3), fwCol = new Float32Array(FWN * 3), fw = [];
+const fwGeo = new THREE.BufferGeometry(); fwGeo.setAttribute('position', new THREE.BufferAttribute(fwPos, 3)); fwGeo.setAttribute('color', new THREE.BufferAttribute(fwCol, 3));
+const fwPts = new THREE.Points(fwGeo, new THREE.PointsMaterial({ size: .35, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, map: softTexture() }));
+fwPts.frustumCulled = false; fwPts.userData.noDisp = 1; scene.add(fwPts);
+const shells = [];
+export function fireworks(x, z, n = 6) { for (let k = 0; k < n; k++) shells.push({ x: x + (Math.random() - .5) * 16, z: z + (Math.random() - .5) * 16, y: hf(x, z), vy: 9 + Math.random() * 4, delay: k * .35 + Math.random() * .3, col: new THREE.Color().setHSL(Math.random(), 1, .6) }); }
+function updFireworks(dt) {
+  for (let k = shells.length - 1; k >= 0; k--) {
+    const s = shells[k]; if (s.delay > 0) { s.delay -= dt; continue; }
+    s.y += s.vy * dt; s.vy -= 6 * dt;
+    if (fw.length < FWN) fw.push({ x: s.x, y: s.y, z: s.z, vx: 0, vy: -.5, vz: 0, life: .4, max: .4, c: new THREE.Color(1, .8, .5) });
+    if (s.vy <= 1) { for (let j = 0; j < 70 && fw.length < FWN; j++) { const a = Math.random() * 6.283, b = Math.acos(Math.random() * 2 - 1), sp = 3 + Math.random() * 2; fw.push({ x: s.x, y: s.y, z: s.z, vx: Math.sin(b) * Math.cos(a) * sp, vy: Math.cos(b) * sp, vz: Math.sin(b) * Math.sin(a) * sp, life: 1.6 + Math.random() * .6, max: 2.2, c: s.col }); } shells.splice(k, 1); if (sfxBoom) sfxBoom(); }
+  }
+  let n = 0;
+  for (let k = fw.length - 1; k >= 0; k--) {
+    const p = fw[k]; p.life -= dt; if (p.life <= 0) { fw.splice(k, 1); continue; }
+    p.vy -= 2.5 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt; p.vx *= .98; p.vz *= .98;
+    const a = Math.min(1, p.life / p.max * 1.4);
+    fwPos[n * 3] = p.x; fwPos[n * 3 + 1] = p.y; fwPos[n * 3 + 2] = p.z; fwCol[n * 3] = p.c.r * a; fwCol[n * 3 + 1] = p.c.g * a; fwCol[n * 3 + 2] = p.c.b * a; n++;
+  }
+  fwGeo.setDrawRange(0, n); fwGeo.attributes.position.needsUpdate = fwGeo.attributes.color.needsUpdate = true;
+}
+let sfxBoom = null; export function setBoom(f) { sfxBoom = f; }
+
+// ---------- yağmur ----------
+const RN = 1600, rainPos = new Float32Array(RN * 6), rainGeo = new THREE.BufferGeometry(); rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xaac4dd, transparent: true, opacity: .5 })); rain.frustumCulled = false; rain.visible = false; rain.userData.noDisp = 1; scene.add(rain);
+const drops = []; for (let k = 0; k < RN; k++) drops.push([Math.random() * 60 - 30, Math.random() * 25, Math.random() * 60 - 30]);
+let rainOn = false, rainK = 0;
+export function setRain(on) { rainOn = !!on; }
+function updRain(dt) {
+  rainK += ((rainOn ? 1 : 0) - rainK) * Math.min(1, dt * .5);
+  rain.visible = rainK > .05; if (!rain.visible) return;
+  rain.material.opacity = .45 * rainK;
+  for (let k = 0; k < RN; k++) { const d = drops[k]; d[1] -= 22 * dt; if (d[1] < 0) { d[1] = 25; d[0] = Math.random() * 60 - 30; d[2] = Math.random() * 60 - 30; } const x = cam.x + d[0], z = cam.z + d[2]; rainPos.set([x, d[1], z, x + .1, d[1] + .7, z], k * 6); }
+  rainGeo.attributes.position.needsUpdate = true;
+}
+
+// ---------- gece ışık havuzları ----------
+const glowMat = new THREE.MeshBasicMaterial({ color: 0xffc46b, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, map: softTexture() });
+const glowIM = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.8, 1.8).rotateX(-Math.PI / 2).translate(.15, .05, 0), glowMat, 3000); glowIM.count = 0; glowIM.renderOrder = 3; scene.add(glowIM);
+const headMat = new THREE.MeshBasicMaterial({ color: 0xfff1c8, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, map: softTexture() });
+const headIM = new THREE.InstancedMesh(new THREE.PlaneGeometry(.5, 1.4).rotateX(-Math.PI / 2).translate(0, .04, .9), headMat, MAXC); headIM.count = 0; headIM.frustumCulled = false; scene.add(headIM);
+
 // ---------- duman / toz ----------
 const softTex = softTexture();
 const smoke = [];
@@ -812,6 +859,8 @@ export function updFx(dt, simDt, tm) {
   }
   for (const r of rotors) { const t = r.userData.t; if (t === 'rotor') r.rotation.z += dt * 2.2; else if (t === 'wheel') { r.children.forEach(ch => { if (!ch.userData.cab) ch.rotation.z = 0; }); r.rotation.z += 0; r.userData.ang = (r.userData.ang || 0) + dt * .25; r.children.forEach((ch, i) => { if (ch.userData.cab) { const a = (i - 1) / 2 / 12 * 6.283 + r.userData.ang; } }); const a0 = r.userData.ang; let ci = 0; r.children.forEach(ch => { if (ch.isMesh && ch.geometry.type === 'BoxGeometry' && !ch.userData.cab) ch.rotation.z = (ci++) / 12 * 6.283 + a0; }); let cj = 0; r.children.forEach(ch => { if (ch.userData.cab) { const a = (cj++) / 12 * 6.283 + a0; ch.position.set(Math.cos(a) * r.userData.base.r, Math.sin(a) * r.userData.base.r, 0); } }); } else if (t === 'beacon') { r.rotation.y += dt * 1.2; r.userData.beam.material.opacity = .08 + night * .25; } else if (t === 'plane') updPlane(r, tm); }
   waveNormal.offset.set((tm / 60000) % 1, (tm / 85000) % 1);
+  updFireworks(dt); updRain(dt);
+  glowMat.opacity = night * .55; headMat.opacity = night * .5;
   for (const [id, g] of fires) {
     if (!R.blds.has(id) || !R.blds.get(id).fire) { scene.remove(g); fires.delete(id); continue; }
     g.children.forEach((sp, k) => { const o = sp.userData.o, f = .5 + .5 * Math.sin(tm / 90 + k * 1.7); sp.position.set(o[0], o[1] + f * .2, o[2]); sp.scale.set(.5 + f * .4, .7 + f * .5, 1); });
@@ -944,16 +993,17 @@ export function project(x, y, z) { _pv.set(x, y + hf(x, z), z).project(camera); 
 const C_HD = new THREE.Color(0xdcefff), C_HN = new THREE.Color(0x6a80b0), C_GD = new THREE.Color(0x4d6b35), C_GN = new THREE.Color(0x2c3850);
 const C_DAY = new THREE.Color(0xa9d3ef), C_SET = new THREE.Color(0xf2a772), C_NIGHT = new THREE.Color(0x16264a), _sky = new THREE.Color();
 export let night = 0;
+const _rainC = new THREE.Color(0x7d8a96);
 export function updLight(tkF, shadowsOn) {
   const hr = (tkF % 144) / 6, el = Math.sin((hr - 6) / 12 * Math.PI), az = (hr - 6) / 12 * Math.PI;
   const dayK = clamp((el + .1) / .4, 0, 1); night = clamp((.12 - el) / .25, 0, 1);
   const D = 60;
   sun.position.set(cam.x + Math.cos(az) * D * .7, Math.max(.6, Math.abs(el)) * D, cam.z + D * .4); sun.target.position.set(cam.x, 0, cam.z);
-  sun.intensity = el > 0 ? .6 + 2.2 * clamp(el * 1.6, 0, 1) : .7;
+  sun.intensity = (el > 0 ? .6 + 2.2 * clamp(el * 1.6, 0, 1) : .7) * (1 - rainK * .6);
   sun.color.set(el > .25 ? 0xfff0d8 : el > 0 ? 0xffb37a : 0x9fb6ff);
-  hemi.intensity = .6 + .5 * dayK; hemi.color.copy(C_HN).lerp(C_HD, dayK); hemi.groundColor.copy(C_GN).lerp(C_GD, dayK);
+  hemi.intensity = (.6 + .5 * dayK) * (1 - rainK * .3); hemi.color.copy(C_HN).lerp(C_HD, dayK); hemi.groundColor.copy(C_GN).lerp(C_GD, dayK);
   const setK = clamp(1 - Math.abs(el) / .3, 0, 1) * (1 - night * .6);
-  _sky.copy(C_NIGHT).lerp(C_DAY, dayK).lerp(C_SET, setK * .55); scene.background.copy(_sky); scene.fog.color.copy(_sky);
+  _sky.copy(C_NIGHT).lerp(C_DAY, dayK).lerp(C_SET, setK * .55).lerp(_rainC, rainK * .55); scene.background.copy(_sky); scene.fog.color.copy(_sky);
   const em = night * 1.15; for (const m of nightMats) m.emissiveIntensity = em;
   renderer.shadowMap.enabled = shadowsOn;
 }

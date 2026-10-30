@@ -1,5 +1,5 @@
 // Arayüz, girdi ve oyun döngüsü
-import { ROADS, ROAD_ORDER, ZONES, ZONE_ORDER, SVC, MILES, CATS, TILE, TILES, WH, LEVEL_REQ, POLICIES } from './data.js';
+import { ROADS, ROAD_ORDER, ZONES, ZONE_ORDER, SVC, MILES, CATS, TILE, TILES, WH, LEVEL_REQ, POLICIES, QUESTS } from './data.js';
 import * as Wd from './world.js';
 import { R, planRoad, commitRoad, planSvc, commitSvc, paintZone, nearestSeg, segGeo, deleteSeg, upgradeSeg, upgradeCost, removeBld, tileOf, tileBuyable, buyTile, tileCost, clamp } from './world.js';
 import * as G from './gfx.js';
@@ -12,7 +12,7 @@ document.body.prepend(G.renderer.domElement);
 
 // ---------- ayarlar ----------
 const SAVE_KEY = 'minikMetropol_v3', OPT_KEY = 'minikMetropol_opt3';
-let OPT = { sound: true, gfx: 'high' };
+let OPT = { sound: true, gfx: 'high', music: true };
 try { Object.assign(OPT, JSON.parse(localStorage.getItem(OPT_KEY) || '{}')); } catch (e) { }
 const saveOpt = () => { try { localStorage.setItem(OPT_KEY, JSON.stringify(OPT)); } catch (e) { } };
 function save() { if (!S() || isPreview) return; try { localStorage.setItem(SAVE_KEY, Wd.serialize()); } catch (e) { } }
@@ -20,8 +20,38 @@ function hasSave() { try { return !!localStorage.getItem(SAVE_KEY); } catch (e) 
 
 // ---------- ses ----------
 let AC = null;
-function initAudio() { if (AC) { if (AC.state === 'suspended') AC.resume(); return; } try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } }
+function initAudio() { if (AC) { if (AC.state === 'suspended') AC.resume(); if (running && OPT.music && !music) startMusic(); return; } try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { AC = null; } if (running && OPT.music) startMusic(); }
 function tone(f, d, type = 'sine', v = .1, delay = 0) { if (!AC || !OPT.sound) return; const t0 = AC.currentTime + delay, o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t0); g.gain.setValueAtTime(v, t0); g.gain.exponentialRampToValueAtTime(.001, t0 + d); o.connect(g); g.connect(AC.destination); o.start(t0); o.stop(t0 + d + .02); }
+// ---------- müzik (prosedürel) ----------
+let music = null;
+function note(t, midi, dur, type, vol, dest) {
+  const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = 440 * Math.pow(2, (midi - 69) / 12);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + Math.min(.8, dur * .3)); g.gain.exponentialRampToValueAtTime(.0005, t + dur);
+  o.connect(g); g.connect(dest); o.start(t); o.stop(t + dur + .05);
+}
+function startMusic() {
+  if (!AC || music || !OPT.music) return;
+  const out = AC.createGain(); out.gain.value = 0; out.gain.linearRampToValueAtTime(.06, AC.currentTime + 3); out.connect(AC.destination);
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2200; lp.connect(out);
+  const dl = AC.createDelay(); dl.delayTime.value = .375; const fb = AC.createGain(); fb.gain.value = .32; dl.connect(fb); fb.connect(dl); dl.connect(lp);
+  const bus = AC.createGain(); bus.connect(lp); bus.connect(dl);
+  const DAY = [[48, [0, 4, 7, 11]], [53, [0, 4, 7, 11]], [45, [0, 3, 7, 10]], [43, [0, 4, 7, 10]]];
+  const NIGHT = [[45, [0, 3, 7, 10]], [50, [0, 3, 7, 10]], [41, [0, 4, 7, 11]], [52, [0, 3, 7, 10]]];
+  let step = 0, next = AC.currentTime + .2;
+  const timer = setInterval(() => {
+    if (!AC) return;
+    while (next < AC.currentTime + .8) {
+      const prog = G.night > .5 ? NIGHT : DAY, [root, iv] = prog[Math.floor(step / 16) % 4];
+      if (step % 16 === 0) for (const k of iv) { note(next, root + k, 7.5, 'sine', .05, bus); note(next, root + k + 12, 7, 'triangle', .012, bus); }
+      if (step % 16 === 0) note(next, root - 12, 7.5, 'sine', .06, bus);
+      if (Math.random() < (G.night > .5 ? .3 : .42)) { const k = iv[(Math.random() * iv.length) | 0] + (Math.random() < .5 ? 12 : 24); note(next, root + k, 1.4, 'triangle', .035, bus); }
+      next += .375; step++;
+    }
+  }, 200);
+  music = { out, timer };
+}
+function stopMusic() { if (!music) return; clearInterval(music.timer); const o = music.out; o.gain.linearRampToValueAtTime(0, AC.currentTime + 1); setTimeout(() => o.disconnect(), 1200); music = null; }
+G.setBoom(() => { if (AC && OPT.sound) { tone(90 + Math.random() * 60, .5, 'sawtooth', .025); tone(600 + Math.random() * 300, .25, 'sine', .015, .02); } });
 function sfx(k) {
   if (!AC || !OPT.sound) return;
   if (k === 'build') { tone(520, .08, 'triangle'); tone(780, .1, 'triangle', .08, .06); }
@@ -48,7 +78,7 @@ function clock() { const m = (S().tk % 144) * 10; return String((m / 60) | 0).pa
 function updHud() {
   const st = R.st, s = S(); if (!s) return;
   const hr = (s.tk % 144) / 6;
-  $('cname').textContent = MILES[s.ms].title; $('cday').textContent = `${hr >= 6.5 && hr < 19 ? '☀️' : '🌙'} Gün ${Math.floor(s.tk / 144) + 1} · ${clock()}`;
+  $('cname').textContent = (s.name ? s.name + ' · ' : '') + MILES[s.ms].title; $('cday').textContent = `${hr >= 6.5 && hr < 19 ? '☀️' : '🌙'} Gün ${Math.floor(s.tk / 144) + 1} · ${clock()}`;
   const m = $('sMoney'); m.textContent = fmt(s.money); m.className = s.money < 0 ? 'neg' : '';
   const ph = st.net * 6, n = $('sNet'); n.textContent = (ph >= 0 ? '+' : '') + fmt(ph) + '/sa'; n.className = ph >= 0 ? 'pos' : 'neg';
   $('sPop').textContent = fmt(st.pop); $('sHap').textContent = st.pop ? st.hap + '%' : '-';
@@ -217,9 +247,12 @@ function showStats() {
   h += row('😊 Mutluluk', st.hap + '%') + row('⚡ Elektrik (kullanım/üretim)', st.eDem + ' / ' + st.eSup) + row('💧 Su (kullanım/üretim)', st.wDem + ' / ' + st.wSup);
   h += row('💰 Gelir', '+' + fmt(st.inc * 6) + '/sa') + row('💸 Gider', '-' + fmt(st.exp * 6) + '/sa') + row('🛣️ Yol uzunluğu', fmt(st.roadLen * 8 / 1000 * 10) / 10 + ' km');
   const nx = MILES[s.ms + 1]; if (nx) h += row('🏁 Sonraki unvan', `${nx.title} (${fmt(nx.pop)} kişi)`);
+  if ((s.hist || []).length > 2) h += `<div style="margin-top:8px"><b>📈 Gelişim</b><canvas id="histC" width="340" height="110" style="width:100%;height:110px;background:rgba(255,255,255,.05);border-radius:8px;margin-top:4px"></canvas><small style="opacity:.75"><span style="color:#6ee36e">■</span> nüfus <span style="color:#ffd65a">■</span> para <span style="color:#5ab4ff">■</span> mutluluk</small></div>`;
   h += `<div style="margin-top:8px"><b>🏛️ Şehir politikaları</b>` + Object.entries(POLICIES).map(([k, p]) => `<label class="srow" style="align-items:center"><span>${p.n}<br><small style="opacity:.7">${p.d}${p.cost ? ' · ' + fmt(p.cost * 6) + '/sa' : ''}</small></span><input type="checkbox" data-pol="${k}" ${s.pol && s.pol[k] ? 'checked' : ''}></label>`).join('') + `</div>`;
   h += `<div style="margin-top:8px">🧾 Vergi oranı: <b id="taxV">${Math.round(s.tax * 10)}%</b><input type="range" id="taxR" min="6" max="16" value="${Math.round(s.tax * 10)}"><small style="opacity:.75">Yüksek vergi gelir getirir ama mutluluğu düşürür.</small></div>`;
   $('statsBody').innerHTML = h; $('statsPanel').style.display = 'block';
+  const hc = $('histC'); if (hc) { const g = hc.getContext('2d'), H = s.hist, W = hc.width, Hh = hc.height; g.clearRect(0, 0, W, Hh);
+    for (const [k, col] of [[0, '#6ee36e'], [1, '#ffd65a'], [2, '#5ab4ff']]) { let mn = Infinity, mx = -Infinity; for (const r of H) { mn = Math.min(mn, r[k]); mx = Math.max(mx, r[k]); } if (k === 2) { mn = 0; mx = 100; } if (mx === mn) mx = mn + 1; g.strokeStyle = col; g.lineWidth = 2; g.beginPath(); H.forEach((r, i) => { const x = i / (H.length - 1) * (W - 4) + 2, y = Hh - 4 - (r[k] - mn) / (mx - mn) * (Hh - 8); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); } }
   for (const cb of $('statsBody').querySelectorAll('[data-pol]')) cb.onchange = () => { s.pol = s.pol || {}; s.pol[cb.dataset.pol] = cb.checked; Wd.derive(); updHud(); sfx('tap'); };
   $('taxR').oninput = e => { s.tax = e.target.value / 10; $('taxV').textContent = e.target.value + '%'; };
 }
@@ -282,6 +315,74 @@ function feed() {
 }
 function showFeed(t) { const f = $('feed'); f.innerHTML = '💬 ' + t; f.classList.add('on'); clearTimeout(feedT); feedT = setTimeout(() => f.classList.remove('on'), 6000); }
 
+// ---------- görevler ----------
+function qCheck(id) {
+  const st = R.st, s = S(), cnt = k => st.svcCnt[k] || 0, blds = [...R.blds.values()];
+  switch (id) {
+    case 'ilk_yol': return [...R.segs.values()].some(x => x.t !== 'highway' && R.conn.has(x.id));
+    case 'elektrik': return st.eSup > 0;
+    case 'su': return st.wSup > 0;
+    case 'konut10': return blds.filter(b => !b.svc && ZONES[b.zt].k === 'R').length >= 10;
+    case 'nufus100': return st.pop >= 100;
+    case 'park3': return cnt('park') + cnt('play') + cnt('plaza') + cnt('bigpark') >= 3;
+    case 'kavsak5': return [...R.nodes.values()].filter(n => Wd.degree(n.id) >= 3).length >= 5;
+    case 'donerk': return (s.deco || []).length >= 1;
+    case 'arazi': return s.tiles.length >= 2;
+    case 'kopru': return [...R.nodes.values()].some(n => n.h > 0);
+    case 'altgecit': return [...R.nodes.values()].some(n => n.h < 0);
+    case 'egitim3': return cnt('ilk') && cnt('orta') && cnt('lise');
+    case 'nufus500': return st.pop >= 500;
+    case 'apartman': return blds.some(b => b.zt === 'r1' && b.lvl >= 3 || b.zt === 'r2' && b.lvl >= 1);
+    case 'cami': return cnt('cami') && cnt('kutup');
+    case 'toplu': return cnt('busdep') && cnt('busstop') >= 3;
+    case 'mutlu80': return st.pop >= 200 && st.hap >= 80;
+    case 'ofis': return blds.some(b => b.zt === 'o');
+    case 'nufus1500': return st.pop >= 1500;
+    case 'simge': return cnt('saatk') + cnt('luna') + cnt('tvk') + cnt('fener') + cnt('havali') > 0;
+    case 'metro2': return cnt('metro') >= 2;
+    case 'gokdelen': return blds.some(b => (b.zt === 'r2' && b.lvl >= 5) || (b.zt === 'o' && b.lvl >= 3) || (b.zt === 'c2' && b.lvl >= 3));
+    case 'yol10': return st.roadLen * 8 >= 10000;
+    case 'nufus5000': return st.pop >= 5000;
+    case 'havali': return cnt('havali') > 0;
+    case 'nufus15000': return st.pop >= 15000;
+    case 'metropol': return st.pop >= 40000;
+  }
+  return false;
+}
+function checkQuests() {
+  const s = S(); if (!s || isPreview) return; s.qd = s.qd || [];
+  for (const q of QUESTS) if (!s.qd.includes(q.id) && qCheck(q.id)) {
+    s.qd.push(q.id); s.money += q.r; sfx('win'); G.fireworks(cam.x, cam.z, 6);
+    toast(`🎯 Görev tamam: <b>${q.n}</b><br>+${fmt(q.r)} 💰`, 3500);
+  }
+  if ($('questPanel').style.display === 'block') showQuests();
+}
+function showQuests() {
+  const s = S(), done = s.qd || [];
+  const open = QUESTS.filter(q => !done.includes(q.id));
+  let h = `<h3>🎯 Görevler · ${done.length}/${QUESTS.length}</h3>`;
+  h += open.slice(0, 6).map((q, i) => `<div class="srow" style="${i >= 3 ? 'opacity:.55' : ''}"><span>${i < 3 ? '⬜' : '🔒'} ${q.n}</span><b>+${fmt(q.r)}</b></div>`).join('');
+  if (done.length) h += `<div style="margin-top:8px;opacity:.75;font-size:12px">✅ Tamamlananlar: ${QUESTS.filter(q => done.includes(q.id)).map(q => q.n).join(' · ')}</div>`;
+  $('questBody').innerHTML = h; $('questPanel').style.display = 'block';
+}
+$('bQuest').onclick = () => { initAudio(); sfx('tap'); if ($('questPanel').style.display === 'block') $('questPanel').style.display = 'none'; else showQuests(); };
+$('questX').onclick = () => { $('questPanel').style.display = 'none'; };
+
+// ---------- olaylar ve hava ----------
+function events() {
+  const s = S(); if (!s || isPreview) return;
+  s.hist = s.hist || [];
+  if (s.tk % 6 === 0) { s.hist.push([R.st.pop, Math.round(s.money), R.st.hap]); if (s.hist.length > 300) s.hist.splice(0, s.hist.length - 300); }
+  if (s.ev && s.tk > s.ev.until) { if (s.ev.t === 'fest') showFeed('🎉 Festival sona erdi. Herkes çok eğlendi!'); s.ev = null; }
+  if (!s.ev && R.st.pop > 80 && Math.random() < .004) {
+    const r = Math.random();
+    if (r < .45) { s.ev = { t: 'rain', until: s.tk + 30 + (Math.random() * 40 | 0) }; showFeed('🌧️ <b>Meteoroloji:</b> Şehre yağmur geliyor.'); }
+    else if (r < .75) { s.ev = { t: 'fest', until: s.tk + 72 }; showFeed('🎉 <b>Belediye:</b> Şehir festivali başladı! Turist geliri ve mutluluk arttı.'); G.fireworks(cam.x, cam.z, 10); }
+    else { const bonus = 500 + Math.round(R.st.pop * 2); s.money += bonus; showFeed(`🏗️ <b>Yatırımcı:</b> Şehrinize güveniyoruz! +${fmt(bonus)} 💰 hibe.`); }
+  }
+  G.setRain(s.ev && s.ev.t === 'rain');
+}
+
 // ---------- değişiklik sonrası ----------
 function afterChange() {
   const d = R.dirty;
@@ -299,7 +400,7 @@ function afterChange() {
     else if (e.t === 'fire') { G.setFire(e.id, true); if (e.from) G.spawnSpecial(e.from, e.id, 'fire'); const b = R.blds.get(e.id); if (b) floatAt(b.x, b.z, '🔥', 1.6); showFeed(e.from ? '🔥 <b>İtfaiye:</b> Yangın ihbarı aldık, ekipler yolda!' : '🔥 <b>Komşu:</b> Bina yanıyor ve yakında itfaiye yok!'); }
     else if (e.t === 'fireout') { G.setFire(e.id, false); const b = R.blds.get(e.id); if (b) floatAt(b.x, b.z, '🚒✅', 1.6); }
     else if (e.t === 'burn') { G.dust(e.x, e.z); toast('🔥 Bir bina yanıp yıkıldı. Oraya itfaiye kurmalısın.', 3500); }
-    else if (e.t === 'ms') { toast('🎉 ' + MILES[e.ms].msg + (MILES[e.ms].bonus ? `<br>+${fmt(MILES[e.ms].bonus)} 💰` : ''), 4500); sfx('win'); buildSub(); }
+    else if (e.t === 'ms') { G.fireworks(cam.x, cam.z, 16); toast('🎉 ' + MILES[e.ms].msg + (MILES[e.ms].bonus ? `<br>+${fmt(MILES[e.ms].bonus)} 💰` : ''), 4500); sfx('win'); buildSub(); }
   }
   checkTut(); updHud(); if (view) applyView();
 }
@@ -346,6 +447,7 @@ function doBull(g, tap) {
 }
 cv.addEventListener('pointerdown', e => {
   initAudio(); if (isPreview || !running) return;
+  if (photo && ptrs.size === 0) { ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); GS = { mode: 'pan', sx: e.clientX, sy: e.clientY, moved: false, grab: groundAt(e.clientX, e.clientY), photo: true }; return; }
   try { cv.setPointerCapture(e.pointerId); } catch (_) { }
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (ptrs.size === 1) {
@@ -390,6 +492,7 @@ cv.addEventListener('pointermove', e => {
 });
 function endPtr(e) {
   if (!ptrs.has(e.pointerId)) return; ptrs.delete(e.pointerId);
+  if (GS && GS.photo && ptrs.size === 0) { if (!GS.moved) setPhoto(false); GS = null; return; }
   if (GS && ptrs.size === 0) {
     const g = groundAt(e.clientX, e.clientY);
     if (GS.mode === 'pan' && !GS.moved && g) {
@@ -448,10 +551,15 @@ $('bMenu').onclick = () => { save(); openMenu(); };
 
 // ---------- menü ----------
 let confirmNew = false;
-function updOpts() { $('oSound').textContent = OPT.sound ? '🔊 Ses: Açık' : '🔇 Ses: Kapalı'; $('oGfx').textContent = OPT.gfx === 'high' ? '✨ Grafik: Yüksek' : '⚡ Grafik: Hızlı'; }
+function updOpts() { $('oMusic').textContent = OPT.music ? '🎵 Müzik: Açık' : '🎵 Müzik: Kapalı'; $('oSound').textContent = OPT.sound ? '🔊 Ses: Açık' : '🔇 Ses: Kapalı'; $('oGfx').textContent = OPT.gfx === 'high' ? '✨ Grafik: Yüksek' : '⚡ Grafik: Hızlı'; }
 $('oSound').onclick = () => { initAudio(); OPT.sound = !OPT.sound; saveOpt(); updOpts(); sfx('tap'); };
+$('oMusic').onclick = () => { initAudio(); OPT.music = !OPT.music; saveOpt(); updOpts(); if (!OPT.music) stopMusic(); };
+let photo = false;
+function setPhoto(on) { photo = on; document.body.classList.toggle('photo', on); if (on) { $('menu').style.display = 'none'; running = true; toast('📷 Fotoğraf modu: gezin, çıkmak için dokun', 2500); } }
+$('mPhoto').onclick = () => { initAudio(); if (isPreview) return; setPhoto(true); };
 $('oGfx').onclick = () => { OPT.gfx = OPT.gfx === 'high' ? 'low' : 'high'; saveOpt(); updOpts(); G.setQuality(OPT.gfx === 'high'); };
 function openMenu() {
+  $('mPhoto').style.display = isPreview ? 'none' : 'block';
   running = false; confirmNew = false; $('menu').style.display = 'flex'; $('loading').style.display = 'none'; $('maps').style.display = 'none';
   const has = (!isPreview && S()) || hasSave();
   $('mCont').style.display = has ? 'block' : 'none'; $('mNew').style.display = 'block';
@@ -467,7 +575,7 @@ function startGame() {
   selCat('pan');
 }
 $('mCont').onclick = () => {
-  initAudio(); sfx('tap');
+  initAudio(); sfx('tap'); setTimeout(() => { if (OPT.music) startMusic(); }, 100);
   if (!isPreview && S()) { $('menu').style.display = 'none'; running = true; return; }
   try { if (Wd.deserialize(localStorage.getItem(SAVE_KEY))) { const hw = [...R.nodes.values()].find(n => !n.out); cam.x = -6; cam.z = 2; cam.dist = 34; startGame(); return; } } catch (e) { console.error(e); }
   toast('Kayıt açılamadı');
@@ -478,18 +586,19 @@ $('mNew').onclick = () => {
   showMaps();
 };
 function showMaps() {
-  const box = $('maps'); box.innerHTML = '<div style="font-weight:700;margin:6px 0">🗺️ Harita seç</div>';
+  const box = $('maps'); box.innerHTML = '<input id="cityName" maxlength="18" placeholder="Şehrinin adı" value="Yeni Şehir" style="width:100%;padding:12px;border-radius:12px;border:0;font-size:16px;font-weight:700;margin:6px 0;text-align:center"><div style="font-weight:700;margin:6px 0">🗺️ Harita seç</div>';
   for (const [k, m] of Object.entries(Wd.MAPS)) {
     const b = document.createElement('button'); b.className = 'btn sec mapb';
     b.innerHTML = `<span style="font-size:22px">${m.i}</span> <b>${m.n}</b><br><small style="opacity:.75;font-weight:500">${m.d}</small>`;
-    b.onclick = () => { initAudio(); sfx('tap'); box.style.display = 'none'; newCity(k); };
+    b.onclick = () => { initAudio(); sfx('tap'); const nm = ($('cityName').value || '').trim().slice(0, 18); box.style.display = 'none'; newCity(k, nm); };
     box.appendChild(b);
   }
   box.style.display = 'block';
 }
-function newCity(mapType) {
+function newCity(mapType, nm) {
+  setTimeout(() => { if (OPT.music) startMusic(); }, 100);
   undoStack.length = 0;
-  Wd.newGame(mapType); cam.x = -6; cam.z = 2; cam.dist = 34; cam.yaw = cam.yawT = Math.PI * .25; updCam();
+  Wd.newGame(mapType); S().name = nm || 'Yeni Şehir'; cam.x = -6; cam.z = 2; cam.dist = 34; cam.yaw = cam.yawT = Math.PI * .25; updCam();
   startGame(); save(); setTimeout(() => toast('Hoş geldin, Başkan! 👋 Otoban seni bekliyor.', 2600), 300);
 };
 $('mHelp').onclick = () => { const h = $('help'); h.style.display = h.style.display === 'block' ? 'none' : 'block'; };
@@ -503,7 +612,7 @@ function frame(tm) {
   const dtMs = Math.min(100, tm - lastT); lastT = tm; const dt = dtMs / 1000;
   let simDt = 0;
   if (S() && (running || isPreview) && !paused) {
-    if (running) { acc += dtMs * speed; let n = 0; while (acc >= 1000 && n++ < 4) { acc -= 1000; Wd.tick(); if (S().tk % 30 === 0) save(); afterChange(); feed(); } if (acc > 3000) acc = 0; }
+    if (running) { acc += dtMs * speed; let n = 0; while (acc >= 1000 && n++ < 4) { acc -= 1000; Wd.tick(); if (S().tk % 30 === 0) save(); afterChange(); feed(); checkQuests(); events(); } if (acc > 3000) acc = 0; }
     simDt = dt * (running ? speed : 1);
     G.updTraffic(simDt); G.updPeople(simDt);
   }

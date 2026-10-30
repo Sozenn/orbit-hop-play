@@ -947,6 +947,7 @@ export function derive() {
     if (!cov.garbage && S.maxPop > 150 && k !== 'I') h -= 8;
     if (cov.transit) h += 4 + (P.toplu ? 4 : 0);
     if (P.gece && k === 'R') h -= 2;
+    if (S.ev && S.ev.t === 'fest') h += 5;
     if (b.fire) h -= 20;
     h -= (S.tax - 1) * 40;
     b.hap = clamp(Math.round(h), 0, 100); b.cov = cov;
@@ -959,7 +960,7 @@ export function derive() {
   st.Cd = clamp((st.pop * (P.gece ? .28 : .22) + 12 - st.jobsC) / Math.max(20, st.pop * .1), -1, 1);
   st.Od = S.ms >= 2 ? clamp((st.pop * .16 + 10 - st.jobsO) / Math.max(20, st.pop * .1), -1, 1) : 0;
   st.Id = clamp((st.pop * .26 + 25 - st.jobsI) / Math.max(20, st.pop * .1), -1, 1);
-  st.inc = tour * (P.turizm ? 2 : 1) * Math.min(1, st.pop / 300) + (st.pop * .15 + st.jobsC * fill * .15 + st.jobsO * fill * .22 + st.jobsI * fill * .12 * (P.filtre ? .9 : 1)) * S.tax;
+  st.inc = tour * (P.turizm ? 2 : 1) * (S.ev && S.ev.t === 'fest' ? 2 : 1) * Math.min(1, st.pop / 300) + (st.pop * .15 + st.jobsC * fill * .15 + st.jobsO * fill * .22 + st.jobsI * fill * .12 * (P.filtre ? .9 : 1)) * S.tax;
   for (const k in P) if (P[k] && POLICIES[k]) st.exp += POLICIES[k].cost;
   st.transitCov = zb.length ? zb.filter(b => b.cov && b.cov.transit).length / zb.length : 0;
   st.net = st.inc - st.exp;

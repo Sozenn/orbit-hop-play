@@ -33,9 +33,9 @@ canvas#cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-acti
 .tb.lock{opacity:.45}
 .tb .sw{width:22px;height:6px;border-radius:3px;margin-bottom:1px}
 .cb:active,.tb:active{transform:scale(.94)}
-#info,#statsPanel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 150px);width:min(94vw,380px);z-index:7;display:none;padding:12px 14px;white-space:normal;font-weight:500;font-size:13px;line-height:1.5;max-height:58vh;overflow-y:auto}
-#statsPanel{bottom:auto;top:calc(env(safe-area-inset-top) + 60px)}
-#info h3,#statsPanel h3{font-size:15px;margin-bottom:4px;padding-right:20px}
+#info,#statsPanel,#questPanel{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 150px);width:min(94vw,380px);z-index:7;display:none;padding:12px 14px;white-space:normal;font-weight:500;font-size:13px;line-height:1.5;max-height:58vh;overflow-y:auto}
+#statsPanel,#questPanel{bottom:auto;top:calc(env(safe-area-inset-top) + 60px)}
+#info h3,#statsPanel h3,#questPanel h3{font-size:15px;margin-bottom:4px;padding-right:20px}
 .x{position:absolute;right:8px;top:6px;background:none;border:0;color:#fff;font-size:18px;opacity:.7}
 .chk{display:grid;grid-template-columns:1fr 1fr;gap:1px 10px;margin:6px 0;font-size:12.5px}
 .need{background:rgba(255,214,90,.12);border-radius:8px;padding:5px 8px;margin-top:6px;font-size:12px}
@@ -79,3 +79,6 @@ input[type=range]{width:100%}
 
 .mapb{text-align:left;padding:10px 14px;line-height:1.3}
 #maps{max-height:52vh;overflow-y:auto}
+
+body.photo #top,body.photo #bottom,body.photo #rot,body.photo #info,body.photo #statsPanel,body.photo #questPanel,body.photo #feed,body.photo #legend{display:none!important}
+.opts{flex-wrap:wrap}
