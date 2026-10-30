@@ -82,3 +82,5 @@ input[type=range]{width:100%}
 
 body.photo #top,body.photo #bottom,body.photo #rot,body.photo #info,body.photo #statsPanel,body.photo #questPanel,body.photo #feed,body.photo #legend{display:none!important}
 .opts{flex-wrap:wrap}
+#city{max-width:calc(100vw - 200px);overflow:hidden;text-overflow:ellipsis}
+#city b{white-space:nowrap}
