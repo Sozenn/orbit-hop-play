@@ -36,7 +36,7 @@ function sfx(k) {
 
 // ---------- oyun durumu ----------
 let isPreview = true, running = false, paused = false, speed = 1;
-let cat = 'pan', item = null, brush = 1.6, curveMode = false, elevMode = false, lastRoad = 'street', svcRot = 0, fillMode = false, panLock = false, curveA = null;
+let cat = 'pan', item = null, brush = 1.6, curveMode = false, elevMode = false, lastRoad = 'street', svcRot = 0, fillMode = false, panLock = false, curveA = null, underMode = false, rbSize = 'm', bStyle = 'beam';
 const lastItem = { road: 'street', zone: 'r1', util: 'wind', svc: 'clinic', park: 'park', cult: 'cami', trans: 'busstop' };
 
 // ---------- HUD ----------
@@ -88,7 +88,9 @@ function buildCats() {
 function itemsFor(c) {
   const s = S(), ms = s ? s.ms : 0;
   if (c === 'road') return [...ROAD_ORDER.map(k => ({ id: k, i: ROADS[k].i, n: ROADS[k].n, pr: ROADS[k].cost + '/m', lock: ROADS[k].ms > ms ? ROADS[k].ms : 0, sw: k === 'dirt' ? '#9b7b55' : k === 'highway' ? '#9a9a96' : '#3e4147' })),
-    { id: 'curve', i: '〰️', n: 'Eğri yol', pr: curveMode ? 'AÇIK' : 'kapalı', on: curveMode }, { id: 'elev', i: '🌉', n: 'Köprü / üst geçit', pr: elevMode ? 'AÇIK' : 'kapalı', on: elevMode }, { id: 'round', i: '⭕', n: 'Döner kavşak', pr: 'kavşağa dokun' }];
+    { id: 'curve', i: '〰️', n: 'Eğri yol', pr: curveMode ? 'AÇIK' : 'kapalı', on: curveMode }, { id: 'elev', i: '🌉', n: 'Köprü / üst geçit', pr: elevMode ? 'AÇIK' : 'kapalı', on: elevMode }, { id: 'under', i: '🚇', n: 'Alt geçit', pr: underMode ? 'AÇIK' : 'kapalı', on: underMode },
+    { id: 'bstyle', i: { beam: '🌉', susp: '🌁', stay: '🎐', arch: '⌒' }[bStyle], n: 'Köprü tipi', pr: { beam: 'Kiriş', susp: 'Asma', stay: 'Eğik askılı', arch: 'Kemer' }[bStyle] },
+    { id: 'round', i: '⭕', n: 'Döner kavşak', pr: 'her yere koy' }, { id: 'rsize', i: rbSize === 's' ? '◦' : rbSize === 'm' ? '○' : '◯', n: 'Göbek boyu', pr: { s: 'Küçük', m: 'Orta', l: 'Büyük' }[rbSize] }];
   if (c === 'zone') return [...ZONE_ORDER.map(k => ({ id: k, i: ZONES[k].i, n: ZONES[k].n + ' ' + ZONES[k].sub, lock: ZONES[k].ms > ms ? ZONES[k].ms : 0, sw: ZONES[k].c })), { id: 'x', i: '🚫', n: 'Bölgeyi sil', sw: '#fff' }, { id: 'fill', i: '🪣', n: 'Bloğu doldur', pr: fillMode ? 'AÇIK' : 'kapalı', on: fillMode }, { id: 'brush', i: brush < 1 ? '•' : brush < 2 ? '●' : brush < 3 ? '⬤' : '⭕', n: 'Fırça ' + (brush < 1 ? 'küçük' : brush < 2 ? 'orta' : brush < 3 ? 'büyük' : 'çok büyük') }];
   const cats = { util: ['wind', 'coal', 'solar', 'wtower', 'pump'], svc: ['clinic', 'hosp', 'ilk', 'orta', 'lise', 'uni', 'police', 'fire', 'cop'], park: ['park', 'play', 'plaza', 'bigpark', 'stadium'], cult: ['cami', 'kutup', 'muze'], trans: ['busdep', 'busstop', 'metro'] }[c];
   if (cats) return [...cats.map(k => ({ id: k, i: SVC[k].i, n: SVC[k].n, pr: '💰' + fmt(SVC[k].cost), lock: SVC[k].ms > ms ? SVC[k].ms : 0 })), { id: 'rot', i: '🔄', n: 'Döndür', pr: ['ön yola', 'sağa', 'arkaya', 'sola'][svcRot] }];
@@ -107,9 +109,13 @@ function buildSub() {
       if (it.id === 'brush') { brush = brush < 1 ? 1.6 : brush < 2 ? 2.6 : brush < 3 ? 4 : .7; fillMode = false; buildSub(); return; }
       if (it.id === 'fill') { fillMode = !fillMode; toast(fillMode ? '🪣 Bir yere dokun: yollarla çevrili bütün alan seçili bölgeyle dolar' : 'Fırça modu'); buildSub(); return; }
       if (it.id === 'rot') { svcRot = (svcRot + 1) % 4; buildSub(); return; }
-      if (it.id === 'elev') { elevMode = !elevMode; if (elevMode) curveMode = false; if (item === 'round') item = lastRoad; toast(elevMode ? '🌉 Köprü modu: yol rampalarla yükselir, altından geçen yollarla kesişmez' : 'Normal yol modu'); buildSub(); return; }
-      if (it.id === 'curve') { curveMode = !curveMode; if (curveMode) elevMode = false; if (item === 'round') item = lastRoad; toast(curveMode ? '〰️ Eğri yol açık: bir yolun ucundan başlayıp sürükle, yol kıvrılarak devam eder' : 'Düz yol modu'); buildSub(); return; }
+      if (it.id === 'under') { underMode = !underMode; if (underMode) { elevMode = false; curveMode = false; } if (item === 'round') item = lastRoad; toast(underMode ? '🚇 Alt geçit: yol rampayla yerin altına iner, üstteki yolların altından geçer' : 'Normal yol modu'); buildSub(); return; }
+      if (it.id === 'bstyle') { bStyle = { beam: 'susp', susp: 'stay', stay: 'arch', arch: 'beam' }[bStyle]; toast('🌉 Köprü tipi: ' + { beam: 'Kiriş', susp: 'Asma', stay: 'Eğik askılı', arch: 'Kemer' }[bStyle] + ' (köprü modunda ve nehir geçişlerinde kullanılır)'); buildSub(); return; }
+      if (it.id === 'rsize') { rbSize = { s: 'm', m: 'l', l: 's' }[rbSize]; buildSub(); return; }
+      if (it.id === 'elev') { elevMode = !elevMode; if (elevMode) { curveMode = false; underMode = false; } if (item === 'round') item = lastRoad; toast(elevMode ? '🌉 Köprü modu: yol rampalarla yükselir, altından geçen yollarla kesişmez' : 'Normal yol modu'); buildSub(); return; }
+      if (it.id === 'curve') { curveMode = !curveMode; if (curveMode) { elevMode = false; underMode = false; } if (item === 'round') item = lastRoad; toast(curveMode ? '〰️ Eğri yol açık: bir yolun ucundan başlayıp sürükle, yol kıvrılarak devam eder' : 'Düz yol modu'); buildSub(); return; }
       if (cat === 'road' && it.id !== 'round') lastRoad = it.id;
+      if (it.id === 'round' && item === 'round') return;
       if (it.lock) { toast(`🔒 ${it.n}: şehrin <b>${MILES[it.lock].title}</b> olunca açılır`); return; }
       item = it.id; lastItem[cat] = it.id; buildSub();
     };
@@ -196,7 +202,7 @@ function act(o, a) {
   pushUndo();
   if (a === 'del') { if (o.kind === 'bld') { const b = R.blds.get(o.id); removeBld(o.id); sfx('bull'); if (b) G.dust(b.x, b.z); } else { const r = deleteSeg(o.id); if (r !== true) { toast(r); sfx('err'); return; } sfx('bull'); } hideInfo(); afterChange(); return; }
   if (a.startsWith('ctl:')) { Wd.setCtl(o.id, a.slice(4)); sfx('tap'); afterChange(); showInfo(o, true); return; }
-  if (a === 'round') { const r = Wd.makeRoundabout(o.id); if (r === true) { sfx('road'); toast('⭕ Döner kavşak yapıldı'); hideInfo(); afterChange(); } else { toast(r); sfx('err'); } return; }
+  if (a === 'round') { const r = Wd.makeRoundabout(o.id, rbSize); if (r === true) { sfx('road'); toast('⭕ Döner kavşak yapıldı'); hideInfo(); afterChange(); } else { toast(r); sfx('err'); } return; }
   if (a === 'flip') { Wd.flipSeg(o.id); sfx('road'); hideInfo(); afterChange(); return; }
   if (a.startsWith('up:')) { const r = upgradeSeg(o.id, a.slice(3)); if (r !== true) { toast(r === 'same' ? 'Zaten bu tip' : r); sfx('err'); return; } sfx('road'); hideInfo(); afterChange(); }
 }
@@ -362,12 +368,12 @@ cv.addEventListener('pointermove', e => {
   else if (GS.mode === 'act') {
     if (far) GS.moved = true;
     const g = groundAt(e.clientX, e.clientY); if (!g) return;
-    if (cat === 'road' && item === 'round') { const n = Wd.roundaboutAt(g[0], g[1]); G.setGhostNode(n, !!n); }
+    if (cat === 'road' && item === 'round') { GS.plan = Wd.planRoundabout(g[0], g[1], rbSize); G.setGhostRing(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '⭕ 💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
     else if (cat === 'road' && curveMode && curveA) { GS.plan = Wd.planCurve(curveA.A[0], curveA.A[1], g[0], g[1], item, curveA.C); G.setGhostRoad(GS.plan); roadTags(GS.plan); edgePan(e.clientX, e.clientY); }
     else if (cat === 'road' && GS.moved && GS.start) {
       edgePan(e.clientX, e.clientY);
       if (curveMode) { const t = Wd.planCurve(GS.start[0], GS.start[1], g[0], g[1], item); GS.curveStage1 = !!t.noTangent; GS.plan = t.noTangent ? Object.assign(planRoad(GS.start[0], GS.start[1], g[0], g[1], item), { stage1: true }) : t; }
-      else GS.plan = elevMode ? Wd.planElevated(GS.start[0], GS.start[1], g[0], g[1], item) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); roadTags(GS.plan); }
+      else GS.plan = (elevMode || underMode) ? Wd.planElevated(GS.start[0], GS.start[1], g[0], g[1], item, underMode) : planRoad(GS.start[0], GS.start[1], g[0], g[1], item); G.setGhostRoad(GS.plan); roadTags(GS.plan); }
     else if (cat === 'zone') doPaint(g);
     else if (cat === 'bull') doBull(g, false);
     else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans') { GS.plan = planSvc(g[0], g[1], item, svcRot); G.setGhostBld(GS.plan); costTag(e.clientX, e.clientY, GS.plan.ok ? '💰 ' + fmt(GS.plan.cost) : GS.plan.msg, GS.plan.ok); }
@@ -391,9 +397,8 @@ function endPtr(e) {
       else { const o = pickAt(g[0], g[1]); if (o) showInfo(o); else hideInfo(); }
     } else if (GS.mode === 'act') {
       if (cat === 'road' && item === 'round') {
-        const n = g && Wd.roundaboutAt(g[0], g[1]);
-        if (!n) { toast('⭕ Döner kavşak için 3 ya da daha fazla yolun buluştuğu bir kavşağa dokun'); sfx('err'); }
-        else { pushUndo(); const r = Wd.makeRoundabout(n.id); if (r === true) { sfx('road'); toast('⭕ Döner kavşak yapıldı'); afterChange(); } else { toast(r); sfx('err'); } }
+        const p = g && Wd.planRoundabout(g[0], g[1], rbSize);
+        if (p && p.ok) { pushUndo(); Wd.commitRoundabout(p); sfx('road'); toast('⭕ Döner kavşak yapıldı'); afterChange(); } else if (p) { toast(p.msg); sfx('err'); }
         G.clearGhost();
       } else if (cat === 'road' && curveMode && curveA) {
         if (!GS.plan && g) GS.plan = Wd.planCurve(curveA.A[0], curveA.A[1], g[0], g[1], item, curveA.C);
@@ -403,7 +408,7 @@ function endPtr(e) {
         curveA = { A: [GS.plan.A.x, GS.plan.A.z], C: [GS.plan.B.x, GS.plan.B.z] };
         G.setGhostRoad(GS.plan); setTimeout(() => roadTags(GS && GS.plan || null), 0); toast('〰️ Kavis yönü tamam. Şimdi bitiş noktasına sürükle ya da dokun.', 3000); sfx('tap');
       } else if (cat === 'road') {
-        if (GS.moved && GS.plan) { if (GS.plan.ok) { pushUndo(); if (GS.plan.elev) Wd.commitElevated(GS.plan); else if (GS.plan.curve) Wd.commitCurve(GS.plan); else commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
+        if (GS.moved && GS.plan) { if (GS.plan.ok) { pushUndo(); if (GS.plan.elev) { GS.plan.bs = bStyle; Wd.commitElevated(GS.plan); } else if (bStyle !== 'beam' && GS.plan.bridge > 0) { GS.plan.bs = bStyle; commitRoad(GS.plan); } else if (GS.plan.curve) Wd.commitCurve(GS.plan); else commitRoad(GS.plan); sfx('road'); afterChange(); } else { toast(GS.plan.msg); sfx('err'); } }
         else if (!GS.moved && g && item !== 'round') { const ns = nearestSeg(g[0], g[1], .3); if (ns && ns.d <= ns.hw + .3) { const s = R.segs.get(ns.id); if (s.t === item) showInfo({ kind: 'seg', id: ns.id }); else { pushUndo(); const r = upgradeSeg(ns.id, item); if (r === true) { sfx('road'); toast(`${ROADS[item].i} Yol ${ROADS[item].n} oldu`); afterChange(); } else { toast(r); sfx('err'); } } } }
         G.clearGhost();
       } else if (cat === 'util' || cat === 'svc' || cat === 'park' || cat === 'cult' || cat === 'trans') {
@@ -447,7 +452,7 @@ function updOpts() { $('oSound').textContent = OPT.sound ? '🔊 Ses: Açık' : 
 $('oSound').onclick = () => { initAudio(); OPT.sound = !OPT.sound; saveOpt(); updOpts(); sfx('tap'); };
 $('oGfx').onclick = () => { OPT.gfx = OPT.gfx === 'high' ? 'low' : 'high'; saveOpt(); updOpts(); G.setQuality(OPT.gfx === 'high'); };
 function openMenu() {
-  running = false; confirmNew = false; $('menu').style.display = 'flex'; $('loading').style.display = 'none';
+  running = false; confirmNew = false; $('menu').style.display = 'flex'; $('loading').style.display = 'none'; $('maps').style.display = 'none';
   const has = (!isPreview && S()) || hasSave();
   $('mCont').style.display = has ? 'block' : 'none'; $('mNew').style.display = 'block';
   $('mNew').textContent = 'Yeni şehir'; $('mNew').className = has ? 'btn sec' : 'btn'; updOpts();
@@ -470,7 +475,21 @@ $('mCont').onclick = () => {
 $('mNew').onclick = () => {
   initAudio(); sfx('tap'); undoStack.length = 0;
   if (((!isPreview && S()) || hasSave()) && !confirmNew) { confirmNew = true; $('mNew').textContent = 'Eminsen tekrar dokun (eski şehir silinir)'; return; }
-  Wd.newGame(); cam.x = -6; cam.z = 2; cam.dist = 34; cam.yaw = cam.yawT = Math.PI * .25; updCam();
+  showMaps();
+};
+function showMaps() {
+  const box = $('maps'); box.innerHTML = '<div style="font-weight:700;margin:6px 0">🗺️ Harita seç</div>';
+  for (const [k, m] of Object.entries(Wd.MAPS)) {
+    const b = document.createElement('button'); b.className = 'btn sec mapb';
+    b.innerHTML = `<span style="font-size:22px">${m.i}</span> <b>${m.n}</b><br><small style="opacity:.75;font-weight:500">${m.d}</small>`;
+    b.onclick = () => { initAudio(); sfx('tap'); box.style.display = 'none'; newCity(k); };
+    box.appendChild(b);
+  }
+  box.style.display = 'block';
+}
+function newCity(mapType) {
+  undoStack.length = 0;
+  Wd.newGame(mapType); cam.x = -6; cam.z = 2; cam.dist = 34; cam.yaw = cam.yawT = Math.PI * .25; updCam();
   startGame(); save(); setTimeout(() => toast('Hoş geldin, Başkan! 👋 Otoban seni bekliyor.', 2600), 300);
 };
 $('mHelp').onclick = () => { const h = $('help'); h.style.display = h.style.display === 'block' ? 'none' : 'block'; };
