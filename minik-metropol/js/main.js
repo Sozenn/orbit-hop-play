@@ -48,9 +48,16 @@ function startMusic() {
       next += .375; step++;
     }
   }, 200);
-  music = { out, timer };
+  // ortam sesleri: gündüz kuşlar, gece cırcır böcekleri
+  const amb = setInterval(() => {
+    if (!AC || !OPT.sound || !running || paused) return;
+    const t = AC.currentTime;
+    if (G.night < .4 && Math.random() < .35) { const o = AC.createOscillator(), g = AC.createGain(), f = 2400 + Math.random() * 1600; o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * (1.2 + Math.random() * .4), t + .08); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.012, t + .02); g.gain.exponentialRampToValueAtTime(.0005, t + .12); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + .15); }
+    if (G.night > .6 && Math.random() < .5) for (let k = 0; k < 3; k++) { const o = AC.createOscillator(), g = AC.createGain(); o.type = 'square'; o.frequency.value = 4200 + Math.random() * 300; g.gain.setValueAtTime(0, t + k * .06); g.gain.linearRampToValueAtTime(.004, t + k * .06 + .01); g.gain.exponentialRampToValueAtTime(.0002, t + k * .06 + .04); o.connect(g); g.connect(AC.destination); o.start(t + k * .06); o.stop(t + k * .06 + .05); }
+  }, 900);
+  music = { out, timer, amb };
 }
-function stopMusic() { if (!music) return; clearInterval(music.timer); const o = music.out; o.gain.linearRampToValueAtTime(0, AC.currentTime + 1); setTimeout(() => o.disconnect(), 1200); music = null; }
+function stopMusic() { if (!music) return; clearInterval(music.timer); clearInterval(music.amb); const o = music.out; o.gain.linearRampToValueAtTime(0, AC.currentTime + 1); setTimeout(() => o.disconnect(), 1200); music = null; }
 G.setBoom(() => { if (AC && OPT.sound) { tone(90 + Math.random() * 60, .5, 'sawtooth', .025); tone(600 + Math.random() * 300, .25, 'sine', .015, .02); } });
 function sfx(k) {
   if (!AC || !OPT.sound) return;

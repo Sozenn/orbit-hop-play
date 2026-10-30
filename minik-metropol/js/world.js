@@ -465,7 +465,7 @@ export function planRoundabout(x, z, size = 'm') {
   else { const ns = nearestSeg(x, z, .6, isGround); if (ns && ns.t > r + 1.2 && ns.t < ns.g.L - r - 1.2) { p.split = ns.id; p.x = ns.px; p.z = ns.pz; } }
   const arms = p.node ? adjOf(p.node).map(id => R.segs.get(id)) : p.split ? [R.segs.get(p.split)] : [];
   if (arms.some(s => s.t === 'highway')) { p.msg = 'Otobana döner kavşak yapılamaz'; return p; }
-  if (p.node) for (const s of arms) if (segGeo(s.id).L < r + 1.4) { p.msg = 'Bağlı yollar bu boy için çok kısa'; return p; }
+  if (p.node) for (const s of arms) if (segGeo(s.id).L < r + .9) { p.msg = 'Bağlı yollar bu boy için çok kısa, daha küçük göbek seç'; return p; }
   // yer kontrolü
   for (let a = 0; a < 6.283; a += .2) for (const rr of [r - rhw, r, r + rhw]) {
     const qx = p.x + Math.cos(a) * rr, qz = p.z + Math.sin(a) * rr;

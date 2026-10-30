@@ -18,4 +18,4 @@ Telefonda ve bilgisayarda tarayıcıdan oynanan 3D şehir kurma oyunu.
 ## Teknik
 - Saf HTML + JavaScript, [three.js](https://threejs.org) (MIT, `lib/` klasöründe). Dış bağlantı yok.
 
-Geliştirici: Safa Özen · v3.0
+Geliştirici: Safa Özen · v4.0
