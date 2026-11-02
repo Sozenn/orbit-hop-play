@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#5fd8d8">
+<title>Torna Ustası</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+  html,body{margin:0;height:100%;overflow:hidden;background:#5fd8d8;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#13343a;touch-action:none;overscroll-behavior:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+  .hud{position:fixed;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top) + 10px) 12px 0;display:flex;align-items:center;gap:8px;pointer-events:none}
+  .hud .mid{flex:1;text-align:center}
+  .hud .name{font-weight:800;font-size:17px;letter-spacing:.3px}
+  .bar{margin:6px auto 0;width:min(220px,60vw);height:10px;border-radius:6px;background:rgba(255,255,255,.45);overflow:hidden}
+  .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#ff7a59,#ffd34d,#3ccf6e);transition:width .2s}
+  .pct{font-size:13px;font-weight:700;margin-top:3px;opacity:.85}
+  .ib{pointer-events:auto;width:44px;height:44px;border-radius:14px;border:0;background:rgba(255,255,255,.55);font-size:20px;display:grid;place-items:center;color:#13343a;cursor:pointer}
+  .ib:active{transform:scale(.94)}
+  #finish{position:fixed;right:14px;pointer-events:auto;border:0;border-radius:16px;padding:12px 20px;font-size:17px;font-weight:800;background:#ffb020;color:#3a2200;box-shadow:0 4px 0 #c47f00;cursor:pointer}
+  #finish:active{transform:translateY(3px);box-shadow:0 1px 0 #c47f00}
+  .ov{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(20,60,66,.55);padding:20px;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+  .ov.on{display:flex}
+  .card{background:#fff8ee;border-radius:24px;padding:22px 18px;width:min(380px,100%);text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.25);max-height:100%;overflow:auto}
+  .card h1{margin:0 0 4px;font-size:30px;color:#6b3d1a}
+  .card h2{margin:0 0 8px;font-size:22px;color:#6b3d1a}
+  .card p{margin:6px 0 14px;font-size:15px;line-height:1.4;color:#5a4636}
+  .btn{display:block;width:100%;border:0;border-radius:16px;padding:14px;font-size:18px;font-weight:800;margin-top:10px;cursor:pointer;background:#2fb8a8;color:#fff;box-shadow:0 4px 0 #1f8478}
+  .btn.alt{background:#e9ddcc;color:#5a4636;box-shadow:0 4px 0 #c9b79e}
+  .btn:active{transform:translateY(3px);box-shadow:none}
+  .grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}
+  .lv{aspect-ratio:1;border:0;border-radius:14px;background:#d9a066;color:#fff;font-weight:900;font-size:19px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 3px 0 #9b6a3c;cursor:pointer}
+  .lv small{font-size:10px;letter-spacing:-1px;color:#ffe27a}
+  .lv.lock{background:#c8bba9;box-shadow:0 3px 0 #a3957f;color:#eee}
+  .stars{font-size:38px;letter-spacing:4px;margin:4px 0;color:#ffb020}
+  .stars .e{color:#ddd}
+  .big{font-size:44px;font-weight:900;color:#2fb8a8;margin:0}
+  .ver{font-size:11px;opacity:.5;margin-top:12px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div class="hud" id="hud" style="display:none">
+  <button class="ib" id="bMenu" aria-label="Menü">☰</button>
+  <div class="mid">
+    <div class="name" id="lvName">Bölüm 1</div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="pct" id="pct">Uyum %0</div>
+  </div>
+  <button class="ib" id="bRestart" aria-label="Yeniden">↻</button>
+  <button class="ib" id="bMute" aria-label="Ses">🔊</button>
+</div>
+<button id="finish" style="display:none">Bitir ✓</button>
+
+<div class="ov on" id="ovStart">
+  <div class="card">
+    <h1>🪵 Torna Ustası</h1>
+    <p>Dönen kütüğü keskiyle yont, beyaz çizgideki şekli çıkar. Fazla derin oyarsan geri dönüşü yok!</p>
+    <button class="btn" id="bPlay">Oyna</button>
+    <button class="btn alt" id="bHow">Nasıl oynanır?</button>
+    <div class="grid" id="grid"></div>
+    <div class="ver">v1.1</div>
+  </div>
+</div>
+
+<div class="ov" id="ovHow">
+  <div class="card">
+    <h2>Nasıl oynanır?</h2>
+    <p>👆 Keskiyi sapından (ya da ekranın boş bir yerinden) tutup sürükle: keski parmağınla birlikte aynı yöne kayar, uç hiçbir zaman parmağının altında kalmaz.<br><br>
+    🪚 Uç kütüğe değdiğinde tahta yontulur. Yukarı çıktıkça daha derin keser.<br><br>
+    🔧 Alttan keski seç: <b>düz</b> geniş yüzeyler, <b>sivri</b> ince oluklar, <b>yuvarlak</b> yumuşak kıvrımlar için.<br><br>
+    ⭐ Şekle ne kadar yakınsan o kadar yıldız. Çok derin oyulan yerler kırmızı görünür.</p>
+    <button class="btn" id="bHowOk">Anladım</button>
+  </div>
+</div>
+
+<div class="ov" id="ovPause">
+  <div class="card">
+    <h2>Duraklatıldı</h2>
+    <button class="btn" id="bResume">Devam</button>
+    <button class="btn alt" id="bLevels">Bölümler</button>
+  </div>
+</div>
+
+<div class="ov" id="ovEnd">
+  <div class="card">
+    <h2 id="endTitle">Harika!</h2>
+    <div class="stars" id="endStars"></div>
+    <p class="big" id="endPct">%0</p>
+    <p id="endMsg"></p>
+    <button class="btn" id="bNext">Sonraki bölüm</button>
+    <button class="btn alt" id="bAgain">Tekrar dene</button>
+    <button class="btn alt" id="bLevels2">Bölümler</button>
+  </div>
+</div>
+
+<script>
+(()=>{
+"use strict";
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const $=id=>document.getElementById(id);
+const N=240;                 // kütük kolon sayısı
+const MINR=0.07;             // en ince kalınlık (maxR oranı)
+
+// ---------- Bölümler ----------
+const sm=(a,b,t)=>{t=Math.min(1,Math.max(0,(t-a)/(b-a)));return t*t*(3-2*t)};
+const LEVELS=[
+ {n:"Silindir", f:t=>0.58},
+ {n:"Koni", f:t=>0.22+0.62*t},
+ {n:"Merdane", f:t=>0.22+0.42*(sm(0.12,0.2,t)-sm(0.8,0.88,t))},
+ {n:"Kum saati", f:t=>0.26+0.6*Math.pow(Math.abs(2*t-1),1.4)},
+ {n:"Sopa", f:t=>t<0.05?0.4:0.2+0.62*t*t},
+ {n:"Boncuklar", f:t=>0.48+0.24*Math.cos(t*Math.PI*8)},
+ {n:"Vazo", f:t=>{ if(t<0.05)return 0.5; if(t<0.82)return 0.26+0.56*Math.pow(Math.sin(Math.PI*(t-0.05)/0.77*0.95),1.3); return 0.28+(t-0.82)/0.18*0.4;}},
+ {n:"Piyon", f:t=>{ const base=t<0.22?0.85-Math.pow(t/0.22,2)*0.5:0;
+     const stem=t<0.68?0.3:0; const col=0.5*Math.exp(-Math.pow((t-0.64)/0.03,2));
+     const hd=0.62*Math.sqrt(Math.max(0,1-Math.pow((t-0.83)/0.16,2)));
+     return Math.max(base,stem,col,hd);} },
+ {n:"Dalga", f:t=>0.5+0.3*Math.sin(t*Math.PI*4)},
+ {n:"Kadeh", f:t=>{ if(t<0.12)return 0.82-t/0.12*0.55; if(t<0.55)return 0.17+0.1*sm(0.4,0.55,t); return 0.3+0.58*Math.sqrt((t-0.55)/0.45);} },
+];
+function buildTarget(f){
+  const a=new Float32Array(N);
+  for(let i=0;i<N;i++) a[i]=Math.min(0.9,Math.max(0.12,f(i/(N-1))));
+  const b=new Float32Array(N);           // hafif yumuşatma
+  for(let i=0;i<N;i++){let s=0,c=0;for(let k=-3;k<=3;k++){const j=i+k;if(j>=0&&j<N){s+=a[j];c++}}b[i]=s/c}
+  return b;
+}
+
+// ---------- Kayıt ----------
+let save={stars:[]};
+try{const s=JSON.parse(localStorage.getItem('torna_v1')||'null');if(s&&Array.isArray(s.stars))save=s}catch(e){}
+function store(){try{localStorage.setItem('torna_v1',JSON.stringify(save))}catch(e){}}
+
+// ---------- Durum ----------
+let W=0,H=0,DPR=1, axisY=0, maxR=0, x0=0, len=0, colW=0, toolY=0, toolBarH=0, safeB=0;
+let level=0, r=new Float32Array(N), r0=new Float32Array(N), tg=new Float32Array(N);
+let tool=0;                 // 0 düz, 1 sivri, 2 yuvarlak
+const TOOLS=[{w:34},{w:30},{w:30}];
+let tip={x:0,y:0}, prevTip=null, pressing=false, grab={x:0,y:0};
+let spin=0, playing=false, paused=false, cutAmt=0, accCache=0, frame=0;
+const parts=[];
+
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2.5);
+  W=innerWidth;H=innerHeight;
+  cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  const sb=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sb'))||0;
+  safeB=sb;
+  toolBarH=Math.min(110,H*0.15)+safeB;
+  const top=80, avail=H-top-toolBarH;
+  maxR=Math.min(W*0.2,avail*0.19,125);
+  len=Math.min(W*0.84,maxR*7.2);
+  x0=(W-len)/2; colW=len/N;
+  axisY=top+avail*0.36;
+  toolY=H-toolBarH;
+  const f=$('finish'); f.style.bottom=(toolBarH+12)+'px';
+  if(!pressing){tip.x=W/2;tip.y=restY();}
+}
+function restY(){return Math.min(toolY-40, axisY+maxR+110)}
+document.documentElement.style.setProperty('--sb','env(safe-area-inset-bottom)');
+// safe-area değerini ölç
+(function(){const d=document.createElement('div');d.style.cssText='position:fixed;bottom:0;height:env(safe-area-inset-bottom);width:1px;visibility:hidden';document.body.appendChild(d);
+  const upd=()=>{document.documentElement.style.setProperty('--sb',d.offsetHeight+'');resize()};
+  addEventListener('resize',upd);addEventListener('orientationchange',()=>setTimeout(upd,200));upd();})();
+
+function startLevel(i){
+  level=i; tg=buildTarget(LEVELS[i].f);
+  for(let k=0;k<N;k++){const v=0.93+0.04*Math.sin(k*0.21+i)+0.02*Math.sin(k*0.73+i*3);r[k]=v;r0[k]=v}
+  parts.length=0; playing=true; paused=false; accCache=0;
+  $('lvName').textContent=`Bölüm ${i+1} · ${LEVELS[i].n}`;
+  showOv(null); $('hud').style.display='flex'; $('finish').style.display='block';
+  tip.x=W/2; tip.y=restY(); updAcc();
+}
+
+// ---------- Kesme ----------
+function edgeH(dx,w){ // keski ucunun profil yüksekliği (px)
+  const hw=w/2; if(Math.abs(dx)>hw) return Infinity;
+  if(tool===0) return 0;
+  if(tool===1) return Math.abs(dx)*1.15;
+  return hw-Math.sqrt(hw*hw-dx*dx);
+}
+function cutAt(tx,ty){
+  const w=TOOLS[tool].w;
+  const i0=Math.max(0,Math.floor((tx-w/2-x0)/colW)), i1=Math.min(N-1,Math.ceil((tx+w/2-x0)/colW));
+  let removed=0;
+  for(let i=i0;i<=i1;i++){
+    const cx=x0+(i+0.5)*colW, h=edgeH(cx-tx,w); if(h===Infinity) continue;
+    const d=Math.max(MINR,(ty+h-axisY)/maxR);
+    if(d<r[i]){removed+=r[i]-d;r[i]=d}
+  }
+  if(removed>0){
+    cutAmt+=removed;
+    const n=Math.min(6,1+removed*8|0);
+    for(let k=0;k<n&&parts.length<260;k++){
+      parts.push({x:tx+(Math.random()-0.5)*w,y:ty+2,vx:(Math.random()-0.5)*5+ (Math.random()<0.5?-1:1)*2,vy:-Math.random()*5-1,
+        a:Math.random()*6.28,va:(Math.random()-0.5)*0.5,s:4+Math.random()*7,life:60+Math.random()*50,
+        c:Math.random()<0.5?'#e9b27a':'#c98a52'});
+    }
+  }
+}
+function carve(){
+  if(!pressing||!playing||paused) {prevTip=null;return}
+  const t={x:tip.x,y:tip.y};
+  if(prevTip){
+    const dx=t.x-prevTip.x, dy=t.y-prevTip.y, d=Math.hypot(dx,dy), st=Math.max(1,Math.ceil(d/2.5));
+    for(let s=1;s<=st;s++) cutAt(prevTip.x+dx*s/st, prevTip.y+dy*s/st);
+  } else cutAt(t.x,t.y);
+  prevTip=t;
+}
+function accuracy(){
+  let s=0; for(let i=0;i<N;i++){const d=r[i]-tg[i]; s+= d>0?d:-d*1.4;}
+  return Math.max(0,Math.min(100,100-(s/N)*200));
+}
+function updAcc(){accCache=accuracy();$('barFill').style.width=accCache+'%';$('pct').textContent='Uyum %'+Math.round(accCache)}
+
+// ---------- Ses ----------
+let ac=null, gain=null, muted=false;
+function initAudio(){
+  if(ac) {if(ac.state==='suspended')ac.resume();return}
+  try{
+    ac=new (window.AudioContext||window.webkitAudioContext)();
+    const len=ac.sampleRate*1, buf=ac.createBuffer(1,len,ac.sampleRate), d=buf.getChannelData(0);
+    let l=0;for(let i=0;i<len;i++){const w=Math.random()*2-1;l=l*0.6+w*0.4;d[i]=l}
+    const src=ac.createBufferSource();src.buffer=buf;src.loop=true;
+    const bp=ac.createBiquadFilter();bp.type='bandpass';bp.frequency.value=1800;bp.Q.value=0.7;
+    gain=ac.createGain();gain.gain.value=0;
+    src.connect(bp);bp.connect(gain);gain.connect(ac.destination);src.start();
+  }catch(e){ac=null}
+}
+function setSound(v){if(gain&&ac)gain.gain.setTargetAtTime(muted||paused?0:v,ac.currentTime,0.04)}
+
+// ---------- Giriş ----------
+function inToolBar(y){return y>toolY}
+function toolButtonAt(x){const bw=Math.min(90,W/4), sx=W/2-bw*1.5; const i=Math.floor((x-sx)/bw); return (i>=0&&i<3)?i:-1}
+cv.addEventListener('pointerdown',e=>{
+  e.preventDefault(); initAudio();
+  if(!playing||paused) return;
+  if(inToolBar(e.clientY)){const b=toolButtonAt(e.clientX); if(b>=0) tool=b; return}
+  try{cv.setPointerCapture(e.pointerId)}catch(_){}
+  pressing=true; prevTip=null;
+  // keskiyi tutulan yerden tut: parmak nereye değerse değsin keski aynı göreli mesafeyle hareket eder
+  grab.x=tip.x-e.clientX; grab.y=tip.y-e.clientY;
+},{passive:false});
+cv.addEventListener('pointermove',e=>{ if(pressing){e.preventDefault();moveTip(e)} },{passive:false});
+const up=()=>{pressing=false;prevTip=null};
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+function moveTip(e){
+  const wx=e.clientX+grab.x, wy=e.clientY+grab.y;
+  tip.x=Math.max(x0-30,Math.min(x0+len+30,wx));
+  tip.y=Math.max(axisY+MINR*maxR,Math.min(toolY-20,wy));
+  // sınıra dayanınca tutuşu güncelle ki geri dönerken gecikme olmasın
+  grab.x+=tip.x-wx; grab.y+=tip.y-wy;
+}
+document.addEventListener('gesturestart',e=>e.preventDefault());
+document.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
+
+// ---------- Çizim ----------
+function bg(){
+  const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#7ae6e6');g.addColorStop(1,'#4cc5c5');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+}
+function drawLathe(){
+  // ayna ve punta
+  const hr=maxR*0.35;
+  ctx.fillStyle='#8a99a3';
+  rr(x0-hr*1.6-8,axisY-hr,hr*1.6,hr*2,8);ctx.fill();
+  rr(x0+len+8,axisY-hr*0.7,hr*1.3,hr*1.4,8);ctx.fill();
+  ctx.fillStyle='#b9c6ce';
+  ctx.fillRect(x0-10,axisY-hr*0.35,12,hr*0.7);
+  ctx.beginPath();ctx.moveTo(x0+len+10,axisY-hr*0.3);ctx.lineTo(x0+len-2,axisY);ctx.lineTo(x0+len+10,axisY+hr*0.3);ctx.fill();
+}
+function rr(x,y,w,h,ra){ctx.beginPath();ctx.moveTo(x+ra,y);ctx.arcTo(x+w,y,x+w,y+h,ra);ctx.arcTo(x+w,y+h,x,y+h,ra);ctx.arcTo(x,y+h,x,y,ra);ctx.arcTo(x,y,x+w,y,ra);ctx.closePath()}
+function drawLog(){
+  const bark=new Path2D(), wood=new Path2D(), hi=new Path2D(), sh=new Path2D(), sh2=new Path2D();
+  for(let i=0;i<N;i++){
+    const R=r[i]*maxR, x=x0+i*colW, w=colW+0.6;
+    (r0[i]-r[i]>0.03?wood:bark).rect(x,axisY-R,w,R*2);
+    hi.rect(x,axisY-R*0.72,w,R*0.38);
+    sh.rect(x,axisY+R*0.45,w,R*0.55);
+    sh2.rect(x,axisY+R*0.8,w,R*0.2);
+  }
+  ctx.fillStyle='#4a2f1e';ctx.fill(bark);
+  ctx.fillStyle='#d9a066';ctx.fill(wood);
+  ctx.fillStyle='rgba(255,240,210,0.22)';ctx.fill(hi);
+  ctx.fillStyle='rgba(40,15,0,0.18)';ctx.fill(sh);
+  ctx.fillStyle='rgba(40,15,0,0.2)';ctx.fill(sh2);
+  // dönen lif çizgileri
+  ctx.lineWidth=1.3;
+  for(let k=0;k<14;k++){
+    const a=k*Math.PI*2/14+spin+ (k%3)*0.13, c=Math.cos(a); if(c<=0.05) continue;
+    const s=Math.sin(a);
+    ctx.beginPath();
+    for(let i=0;i<N;i+=2){const x=x0+(i+0.5)*colW,y=axisY+r[i]*maxR*s; i?ctx.lineTo(x,y):ctx.moveTo(x,y)}
+    ctx.strokeStyle=`rgba(50,20,5,${0.12+0.2*c})`;ctx.stroke();
+  }
+  // sağ uç kesit yüzeyi
+  const R=r[N-1]*maxR, ex=x0+len;
+  ctx.fillStyle='#e8bb84';ctx.beginPath();ctx.ellipse(ex,axisY,R*0.2,R,0,0,Math.PI*2);ctx.fill();
+  ctx.strokeStyle='rgba(150,90,40,0.5)';ctx.lineWidth=1;
+  for(let q=0.3;q<1;q+=0.25){ctx.beginPath();ctx.ellipse(ex,axisY,R*0.2*q,R*q,0,0,Math.PI*2);ctx.stroke()}
+}
+function drawTarget(){
+  const ok=new Path2D(), bad=new Path2D();
+  for(const sgn of [-1,1]){
+    for(let i=0;i<N-1;i++){
+      const x1=x0+(i+0.5)*colW,x2=x1+colW,y1=axisY+sgn*tg[i]*maxR,y2=axisY+sgn*tg[i+1]*maxR;
+      const p=(tg[i]-r[i]>0.04)?bad:ok; p.moveTo(x1,y1);p.lineTo(x2,y2);
+    }
+  }
+  ctx.lineCap='round';
+  ctx.strokeStyle='rgba(0,0,0,0.35)';ctx.lineWidth=6;ctx.stroke(ok);ctx.stroke(bad);
+  ctx.strokeStyle='#ffffff';ctx.lineWidth=3;ctx.stroke(ok);
+  ctx.strokeStyle='#ff4d4d';ctx.stroke(bad);
+}
+function chiselPath(x,y,t,w,sc){
+  const hw=w/2*sc; ctx.beginPath();
+  if(t===0){ctx.moveTo(x-hw,y);ctx.lineTo(x+hw,y)}
+  else if(t===1){ctx.moveTo(x-hw,y+hw*1.15);ctx.lineTo(x,y);ctx.lineTo(x+hw,y+hw*1.15)}
+  else{ctx.moveTo(x-hw,y+hw);ctx.arc(x,y+hw,hw,Math.PI,0)}
+  const bl=70*sc;
+  ctx.lineTo(x+hw,y+bl);ctx.lineTo(x-hw,y+bl);ctx.closePath();
+}
+function drawChisel(x,y,t,sc,active){
+  const w=TOOLS[t].w, hw=w/2*sc, bl=70*sc;
+  // sap
+  ctx.fillStyle='#5aa6e6';rr(x-hw*1.05,y+bl+16*sc,hw*2.1,140*sc,10*sc);ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.35)';ctx.fillRect(x-hw*0.7,y+bl+20*sc,hw*0.35,130*sc);
+  // bilezik
+  ctx.fillStyle='#c9d3da';rr(x-hw*1.15,y+bl,hw*2.3,18*sc,4*sc);ctx.fill();
+  // ağız
+  const g=ctx.createLinearGradient(x-hw,0,x+hw,0);g.addColorStop(0,'#9aa7b0');g.addColorStop(0.45,'#f3f6f8');g.addColorStop(1,'#8c99a2');
+  chiselPath(x,y,t,w,sc);ctx.fillStyle=g;ctx.fill();
+  ctx.lineWidth=2*sc;ctx.strokeStyle=active?'#ffffff':'#dfe6ea';ctx.stroke();
+}
+function drawToolBar(){
+  ctx.fillStyle='rgba(255,255,255,0.28)';ctx.fillRect(0,toolY,W,H-toolY);
+  const bw=Math.min(90,W/4), sx=W/2-bw*1.5, bh=H-toolY-safeB;
+  for(let i=0;i<3;i++){
+    const cx=sx+bw*i+bw/2;
+    if(i===tool){ctx.fillStyle='rgba(255,255,255,0.6)';rr(cx-bw/2+6,toolY+6,bw-12,bh-12,14);ctx.fill()}
+    ctx.save();ctx.beginPath();ctx.rect(sx+bw*i,toolY,bw,bh);ctx.clip();
+    drawChisel(cx,toolY+14,i,0.62,i===tool);ctx.restore();
+  }
+}
+function drawParts(){
+  ctx.lineCap='round';
+  for(const p of parts){
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.a);
+    ctx.strokeStyle=p.c;ctx.globalAlpha=Math.min(1,p.life/25);ctx.lineWidth=2.4;
+    ctx.beginPath();ctx.arc(0,0,p.s,0,4.2);ctx.stroke();ctx.restore();
+  }
+  ctx.globalAlpha=1;
+}
+function update(){
+  spin+=0.22;
+  carve();
+  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.vy+=0.28;p.vx*=0.985;p.x+=p.vx;p.y+=p.vy;p.a+=p.va;p.life--;if(p.life<=0||p.y>H+20)parts.splice(i,1)}
+  setSound(Math.min(0.35,cutAmt*1.8)); cutAmt*=0.5;
+  if(++frame%8===0) updAcc();
+}
+function render(){
+  bg(); if(!playing) {demo();return}
+  drawLathe(); drawLog(); drawTarget(); drawParts();
+  ctx.save();ctx.beginPath();ctx.rect(0,0,W,toolY);ctx.clip();
+  drawChisel(tip.x,tip.y,tool,1,pressing);ctx.restore();
+  drawToolBar();
+}
+function demo(){ // menü arkası: boş dönen kütük
+  if(!r0[0]) for(let k=0;k<N;k++){r[k]=r0[k]=0.6+0.3*Math.abs(Math.sin(k/N*Math.PI*2))}
+  tg=tg.length?tg:buildTarget(t=>0.5);
+  drawLathe(); drawLog(); spin+=0.15;
+}
+let last=0;
+function loop(t){
+  requestAnimationFrame(loop);
+  if(playing&&!paused) update();
+  render();
+}
+requestAnimationFrame(loop);
+
+// ---------- Menü ----------
+function showOv(id){for(const o of document.querySelectorAll('.ov'))o.classList.toggle('on',o.id===id)}
+function buildGrid(){
+  const g=$('grid');g.innerHTML='';
+  LEVELS.forEach((L,i)=>{
+    const st=save.stars[i]||0, lock=i>0&&!(save.stars[i-1]>0);
+    const b=document.createElement('button');b.className='lv'+(lock?' lock':'');
+    b.innerHTML=`${lock?'🔒':i+1}<small>${lock?'':'★'.repeat(st)+'☆'.repeat(3-st)}</small>`;
+    if(!lock) b.onclick=()=>{initAudio();startLevel(i)};
+    g.appendChild(b);
+  });
+}
+function firstOpen(){let i=0;while(i<LEVELS.length-1&&save.stars[i]>0)i++;return i}
+function toMenu(){playing=false;paused=false;setSound(0);$('hud').style.display='none';$('finish').style.display='none';buildGrid();showOv('ovStart')}
+$('bPlay').onclick=()=>{initAudio();let seen=false;try{seen=localStorage.getItem('torna_how')}catch(e){} if(!seen){showOv('ovHow');try{localStorage.setItem('torna_how','1')}catch(e){};$('bHowOk').onclick=()=>startLevel(firstOpen())} else startLevel(firstOpen())};
+$('bHow').onclick=()=>{showOv('ovHow');$('bHowOk').onclick=()=>showOv('ovStart')};
+$('bMenu').onclick=()=>{paused=true;pressing=false;setSound(0);showOv('ovPause')};
+$('bResume').onclick=()=>{paused=false;showOv(null)};
+$('bLevels').onclick=toMenu;$('bLevels2').onclick=toMenu;
+$('bRestart').onclick=()=>startLevel(level);
+$('bMute').onclick=()=>{muted=!muted;$('bMute').textContent=muted?'🔇':'🔊';setSound(0)};
+$('finish').onclick=()=>{
+  pressing=false;updAcc();const a=accCache, st=a>=90?3:a>=80?2:a>=65?1:0;
+  save.stars[level]=Math.max(save.stars[level]||0,st);store();
+  paused=true;setSound(0);
+  $('endTitle').textContent=st===3?'Usta işi! 🏆':st===2?'Çok iyi!':st===1?'Fena değil':'Biraz daha…';
+  $('endStars').innerHTML=[0,1,2].map(i=>i<st?'★':'<span class="e">★</span>').join('');
+  $('endPct').textContent='%'+Math.round(a);
+  $('endMsg').textContent=st===0?'Bir sonraki bölüm için en az 1 yıldız gerekli (%65).':'Şekle uyum oranın.';
+  const hasNext=level<LEVELS.length-1&&st>0;
+  $('bNext').style.display=hasNext?'block':'none';
+  $('bNext').textContent='Sonraki bölüm';
+  showOv('ovEnd');
+};
+$('bNext').onclick=()=>startLevel(level+1);
+$('bAgain').onclick=()=>startLevel(level);
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&playing&&!paused){paused=true;pressing=false;setSound(0);showOv('ovPause')}});
+buildGrid();
+})();
+</script>
+</body>
+</html>
