@@ -180,3 +180,13 @@ textarea { width: 100%; border-radius: 12px; border: 1px solid var(--line); back
 @media (max-width: 520px) { .mhud .score { left: calc(66px + var(--sl)); right: calc(10px + var(--sr)); transform: none; min-width: 0; } }
 /* Eski tarayıcılar için: color-mix yoksa bilye simgesi yine görünsün */
 @supports not (color: color-mix(in srgb, red 50%, blue)) { .ball { background: radial-gradient(circle at 32% 28%, rgba(255,255,255,.95) 0 8%, transparent 20%), radial-gradient(circle at 50% 50%, var(--c1) 0 45%, #111 110%); } }
+/* Pist: öğretici, etiketler */
+.plabels .pl { position: absolute; transform: translate(-50%, -100%); padding: 4px 9px; border-radius: 10px; font: 800 11px var(--f); letter-spacing: .06em; pointer-events: none; white-space: nowrap; }
+.plabels .start { background: rgba(200,117,51,.92); color: #fff; }
+.plabels .goal { background: rgba(255,207,74,.95); color: #2a1404; }
+.ptut { position: absolute; left: 50%; top: calc(66px + var(--st)); transform: translateX(-50%); width: min(92vw, 420px); padding: 10px 14px; border-radius: 16px; background: rgba(20,14,10,.9); border: 1px solid rgba(255,200,90,.55); display: none; }
+.ptut.on { display: block; animation: fade .3s; }
+.ptut p { margin: 0; font-weight: 700; font-size: 14.5px; line-height: 1.4; text-align: center; }
+.ptut .hand { position: fixed; left: 0; top: 0; font-size: 34px; pointer-events: none; transition: opacity .2s; filter: drop-shadow(0 3px 6px rgba(0,0,0,.6)); z-index: 6; }
+.rbtn.go.pulse { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(80,230,130,.25), 0 6px 16px rgba(40,200,100,.35); } }

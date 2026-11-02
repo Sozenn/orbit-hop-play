@@ -4,4 +4,4 @@
 
 **Oyna:** https://sozenn.github.io/orbit-hop-play/bilye-atolyesi/
 
-Sürüm v6 · © Sozenn — tüm hakları saklıdır.
+Sürüm v7 · © Sozenn — tüm hakları saklıdır.

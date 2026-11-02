@@ -1,6 +1,6 @@
 // Servis çalışanı: sayfa ve kod her zaman önce ağdan (güncel sürüm), internet yoksa önbellekten; simgeler önbellek öncelikli.
-const CACHE = 'bilye-atolyesi-v6';
-const FILES = ["./game.js","./icons/apple-touch-icon.png","./icons/icon-192.png","./icons/icon-512.png","./index.html","./manifest.webmanifest","./style.css"];
+const CACHE = 'bilye-atolyesi-v7';
+const FILES = ["./classic/icon-192.png","./classic/icon-512.png","./classic/index.html","./classic/manifest.webmanifest","./game.js","./icons/apple-touch-icon.png","./icons/icon-192.png","./icons/icon-512.png","./index.html","./manifest.webmanifest","./style.css"];
 const HEAVY = /\.(png|jpg|webp)$/i;
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => Promise.all(FILES.map((f) => fetch(new Request(f, { cache: 'reload' })).then((r) => (r.ok ? c.put(f, r) : null)).catch(() => null)))).then(() => self.skipWaiting()));
