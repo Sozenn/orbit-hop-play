@@ -85,7 +85,7 @@ canvas#show{width:100%;height:auto;aspect-ratio:2/1;display:block;margin:2px 0}
   <p class="how">Bidonun vanasına dokun: bilyeler akar, tekrar dokun: durur.<br>Bant bilyeleri geçiş kapılarından aynı renkteki kutulara düşürür.<br><b>Bant dolup tıkanmasın!</b> Zorlanırsan yardımcı güçleri kullan.</p>
   <button class="big" id="bPlay">Oyna</button>
   <div class="row"><button class="ghost" id="bLevels">Seviyeler</button><button class="ghost" id="bQuests">Görevler<span class="badge" id="qBadge">0/3</span></button></div>
-  <div class="ver">v2.2 · Safa Özen</div>
+  <div class="ver">v2.3 · Safa Özen</div>
 </div></div>
 
 <div class="ov hide" id="lvlO"><div class="card">
@@ -627,7 +627,7 @@ function genLevel(n) {
 // ================= Durum =================
 let mode = 'menu', level = parseInt(load('bilye_level', '1')) || 1;
 let cans = [], boxCols = [], balls = [], slots = [], flights = [], ghosts = [];
-let phase = 0, speed = 160, totalBoxes = 0, baseBoxes = 0, cleared = 0, stuckT = 0, overT = 0, endT = -1, endWin = false, tapCD = 0, hint = false, combo = 0, maxCombo = 0, lastPop = -9, chevPhase = 0;
+let phase = 0, speed = 160, totalBoxes = 0, baseBoxes = 0, cleared = 0, stuckT = 0, overT = 0, endT = -1, endWin = false, tapCD = 0, hint = 0, tutCan = 0, tutPoured = 0, combo = 0, maxCombo = 0, lastPop = -9, chevPhase = 0;
 let score = 0, levelTime = 0, boostUsed = 0, boosts = {vac: 2, call: 2, joker: 1}, boostAvail = {vac: false, call: false, joker: false}, boostPress = [0, 0, 0];
 let uidN = 1, warned = false, isHard = false, funnelWarn = false;
 let bonus = {vac: 0, call: 0, joker: 0}; try { Object.assign(bonus, JSON.parse(load('bilye_bonus', '{}')) || {}); } catch (e) {}
@@ -658,11 +658,10 @@ function startLevel(n) {
   slots = new Array(NS).fill(null);
   speed = L.speed; stuckT = 0; overT = 0; endT = -1; combo = 0; maxCombo = 0; tapCD = 0;
   score = 0; levelTime = 0; boostUsed = 0; usedBoost = {vac: 0, call: 0, joker: 0}; boosts = {vac: BASE_BOOST.vac + bonus.vac, call: BASE_BOOST.call + bonus.call, joker: BASE_BOOST.joker + bonus.joker}; warned = false; funnelWarn = false; isHard = L.hard;
-  hint = n === 1;
+  hint = n === 1 ? 1 : 0; tutCan = 0; tutPoured = 0;
   document.getElementById('lvl').textContent = 'Seviye ' + n;
   document.getElementById('pill').classList.toggle('hard', isHard);
-  if (mode === 'menu') {}
-  else if (n === 1) toast('Vanaya dokun: bilyeler akar. Tekrar dokun: durur.');
+  if (mode === 'menu' || n === 1) {}
   else if (isHard) toast('Zor seviye! Bidonlar daha dolu');
   else if (n === 6) toast('Yeni: Karışık bidonlar! Alttaki önce akar');
   else if (n === 4) toast('Yeni: Bomba bilye kutuyu anında doldurur!');
@@ -691,7 +690,9 @@ const modL = (v) => ((v % CV.L) + CV.L) % CV.L;
 function toggleValve(i) {
   const c = cans[i]; if (!c || mode !== 'play' || endT >= 0) return;
   if (!c.items.length) { sfxDeny(); return; }
-  c.open = !c.open; c.cd = 0; hint = false; c.flash = .6;
+  c.open = !c.open; c.cd = 0; c.flash = .6;
+  if (hint === 1 && c.open) { hint = 2; tutCan = i; tutPoured = 0; }
+  else if (hint === 2 && i === tutCan && !c.open) { hint = 0; setTimeout(() => toast('Harika! Lamba hangi rengi gösteriyorsa onu dök.'), 400); }
   const p = (c.x / W) * 1.2 - .6;
   if (c.open) { noise({vol: .15, dur: .18, ft: 'bandpass', ff: 700, ff2: 2200, q: 3, pan: p}); tone(420, {f2: 300, vol: .08, dur: .12, type: 'square', lp: 1500, pan: p}); }
   else { tone(300, {f2: 420, vol: .08, dur: .1, type: 'square', lp: 1500, pan: p}); noise({vol: .1, dur: .06, ft: 'bandpass', ff: 1500, q: 4, pan: p}); }
@@ -704,8 +705,9 @@ function pour(dt) {
     c.dirt = Math.min(1, c.dirt + dt * .008);
     if (!c.open) return;
     c.cd -= dt; if (c.cd > 0) return;
-    if (!c.items.length) { c.open = false; tone(300, {f2: 420, vol: .06, dur: .1, type: 'square', lp: 1500}); return; }
+    if (!c.items.length) { if (hint === 2 && i === tutCan) hint = 0; c.open = false; tone(300, {f2: 420, vol: .06, dur: .1, type: 'square', lp: 1500}); return; }
     for (const b of balls) { const dx = b.x - c.x, dy = b.y - NOZ_Y; if (dx * dx + dy * dy < D * D * .9) return; }
+    if (hint === 2 && i === tutCan) tutPoured++;
     const it = c.items.shift(); c.shift += 1; c.cd = 1 / 7; c.dirt = Math.min(1, c.dirt + .005);
     balls.push({mat: it.m, orig: it.o, src: i, uid: uidN++, x: c.x + rand(-1.5, 1.5), y: NOZ_Y, vx: rand(-15, 15), vy: 180, rot: rand(0, 6), sq: 0, hit: 0, snd: 0, still: 0});
     if (sndBudget <= 0) { noise({vol: .05, dur: .03, ft: 'bandpass', ff: 2400, q: 5, pan: (c.x / W) * 1.2 - .6}); sndBudget = .03; }
@@ -1306,8 +1308,13 @@ function drawBox(col, b, x, y, front) {
   ctx.restore();
 }
 function drawHint() {
-  const c = cans[0]; if (!c || !c.items.length) return;
+  const c = cans[hint === 2 ? tutCan : 0]; if (!c || !c.items.length) return;
+  if (hint === 2 && (tutPoured < 4 || !c.open)) return;
   const x = c.x, y = CAN_BOT + 22, p = (time % 1.2) / 1.2;
+  const label = hint === 1 ? 'Dokun: vanayı aç' : 'Yeterli! Tekrar dokun: vanayı kapat';
+  ctx.font = '800 18px system-ui,sans-serif'; const tw = ctx.measureText(label).width + 28, lx = clamp(x, tw / 2 + 8, W - tw / 2 - 8), ly = y + 118;
+  ctx.fillStyle = hint === 1 ? 'rgba(63,207,90,.95)' : 'rgba(224,69,58,.95)'; rr(ctx, lx - tw / 2, ly - 20, tw, 40, 20); ctx.fill();
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(label, lx, ly + 1);
   ctx.strokeStyle = `rgba(255,255,255,${1 - p})`; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(x, y, 16 + p * 34, 0, 7); ctx.stroke();
   ctx.font = '60px system-ui,"Apple Color Emoji","Segoe UI Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('👆', x + 30, y + 50 + Math.sin(time * 6) * 6);
