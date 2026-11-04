@@ -55,12 +55,12 @@
     <p class="sub">Buzlu nehirden dev somon yakala, dilimle, sat!</p>
     <ul>
       <li>Ekranda parmağını sürükle, karakter yürüsün.</li>
-      <li><b>Zıpkın noktasında</b> dur: nehirdeki dev somonu çekersin.</li>
+      <li><b>Olta noktasında</b> dur: nehirden somon tutarsın. Balıklar buz sandığına gider.</li><li>Ara sıra gelen <b>balıkçı teknesinden</b> toplu balık alabilirsin.</li>
       <li>Makine somonu dilimler. Dilimleri topla, <b>tezgâha</b> bırak.</li>
       <li>Müşteriler öder. Para sırtında birikir; istersen <b>kasaya</b> bırak.</li><li>Parayla <b>işçi</b>, <b>geliştirme</b> ve <b>balık ekmek</b> tezgâhı al.</li>
     </ul>
     <button class="btn" id="playBtn">Oyna</button>
-    <div class="ver">v1.0</div>
+    <div class="ver">v2.0</div>
   </div>
 </div>
 
@@ -76,47 +76,49 @@
 (()=>{
 'use strict';
 // ====== Sabitler (dünya birimleri) ======
-const FENCE={x1:22,y1:150,x2:338,y2:560};
-const DOCK={x:68,y:164};
-const GAP_TOP=[42,96];
-const CONV={x1:112,y:214};
-const BLADE_X=254;
+const FENCE={x1:22,y1:150,x2:400,y2:640};
+const WALK=[30,392], BOARD_Y1=100;            // nehir kıyısı iskelesi
+const FISH_SPOT={x:66,y:118};
+const WORKER_SPOTS=[{x:128,y:116},{x:180,y:116},{x:232,y:116}];
+const DEPOT={x:104,y:224,w:44,h:34}, DEPOT_MAX=40;
+const CONV={x1:142,y:222};
+const BLADE_X=318;
 const BELT_H=9;
-const PILE={x:298,y:228,w:66,h:56};
-const DROP={x:268,y:508,w:86,h:40};
-const COUNTER={x1:222,x2:316,y:548};
-const CASH={x:158,y:514,w:54,h:44};
-const SAFE={x:62,y:516,w:54,h:40};
-const QUEUE_Y=600, QUEUE_X0=268, QUEUE_DX=32, QUEUE_MAX=8;
-const SAUS_LEN=100, SAUS_R=19, SLICE_T=5;
+const PILE={x:362,y:234,w:62,h:56};
+const DROP={x:322,y:588,w:86,h:40};
+const COUNTER={x1:276,x2:370,y:628};
+const CASH={x:200,y:594,w:54,h:44};
+const SAFE={x:70,y:596,w:54,h:40};
+const QUEUE_Y=680, QUEUE_X0=322, QUEUE_DX=32, QUEUE_MAX=8;
+const SAUS_LEN=64, SAUS_R=14, SLICE_T=8, SLICES_PER=8;
 const RIVER={y1:28,y2:136}, RIVER_Y=82;
+const BOAT_X=318, BOAT_Y=60, BOAT_PAD={x:318,y:122};
 // 2. bölge: balık ekmek
-const ZONE2={x1:338,y1:150,x2:528,y2:560};
-const GAP_MID=[300,470];
-const GRILL={x1:404,x2:478,y1:246,y2:278};
-const GIN={x:388,y:316,w:62,h:38};
-const SOUT={x:486,y:322,w:56,h:46};
-const COUNTER2={x1:404,x2:498,y:548};
-const DROP2={x:451,y:508,w:86,h:40};
-const CASH2={x:372,y:514,w:52,h:44};
-const Q2_X0=451, Q2_DX=32, Q2_MAX=6;
+const ZONE2={x1:400,y1:150,x2:632,y2:640};
+const GAP_MID=[330,520];
+const GRILL={x1:476,x2:556,y1:262,y2:294};
+const GIN={x:458,y:334,w:62,h:38};
+const SOUT={x:576,y:340,w:56,h:46};
+const COUNTER2={x1:482,x2:576,y:628};
+const DROP2={x:529,y:588,w:86,h:40};
+const CASH2={x:446,y:594,w:52,h:44};
+const Q2_X0=529, Q2_DX=32, Q2_MAX=6;
 const GRILL_T=[2.2,1.6,1.15,.8];
 
 const PADS=[
-  {id:'worker', x:252,y:300, costs:[150,400,900],  show:1,   label:'İşçi'},
-  {id:'speed',  x:82, y:300, costs:[120,350,800],  show:80,  label:'Kar botu'},
-  {id:'blade',  x:205,y:366, costs:[250,700,1600], show:200, label:'Bıçak'},
-  {id:'carrier',x:82, y:404, costs:[500,1300],     show:450, label:'Taşıyıcı'},
-  {id:'price',  x:166,y:440, costs:[600,1500,3500],show:800, label:'Baharat'},
-  {id:'zone2',  x:296,y:420, costs:[2000],         show:1200,label:'Balık ekmek'},
-  {id:'grill',  x:466,y:414, costs:[600,1500,3500],show:0, need:'zone2', label:'Izgara'},
-  {id:'chef',   x:380,y:420, costs:[1200,3000],    show:0, need:'zone2', label:'Ekmekçi'},
+  {id:'worker', x:210,y:322, costs:[150,400,900],  show:1,   label:'Balıkçı'},
+  {id:'speed',  x:80, y:322, costs:[120,350,800],  show:80,  label:'Kar botu'},
+  {id:'blade',  x:336,y:330, costs:[250,700,1600], show:200, label:'Bıçak'},
+  {id:'carrier',x:80, y:440, costs:[500,1300],     show:450, label:'Taşıyıcı'},
+  {id:'price',  x:210,y:440, costs:[600,1500,3500],show:800, label:'Baharat'},
+  {id:'zone2',  x:336,y:452, costs:[2000],         show:1200,label:'Balık ekmek'},
+  {id:'grill',  x:566,y:456, costs:[600,1500,3500],show:0, need:'zone2', label:'Izgara'},
+  {id:'chef',   x:452,y:466, costs:[1200,3000],    show:0, need:'zone2', label:'Ekmekçi'},
 ];
 const PAD_WAIT=1.0;
-const SPEEDS=[92,106,120,136];
+const SPEEDS=[100,115,130,146];
 const RATES=[2,2.8,3.8,5];
 const PRICES=[3,4,5,7];
-const WORKER_SPOTS=[{x:40,y:186},{x:98,y:186},{x:132,y:176}];
 
 // ====== İzometrik kamera ======
 const TH=-0.5, K=0.72, COS=Math.cos(TH), SIN=Math.sin(TH);
@@ -170,11 +172,14 @@ const sfx={
   thud(){ tone(140,.2,'sine',.3,55); },
   gold(){ [784,988,1175,1568].forEach((f,i)=>setTimeout(()=>tone(f,.18,'sine',.1),i*60)); },
   sizzle(){ noise(.25,.08,3000,5000); },
+  splash(){ noise(.22,.16,1800,500); },
+  bite(){ tone(660,.08,'sine',.1); setTimeout(()=>tone(990,.1,'sine',.1),80); },
+  horn(){ tone(196,.6,'triangle',.18,180); setTimeout(()=>tone(196,.5,'triangle',.15,175),700); },
   buy(){ [523,659,784,1046].forEach((f,i)=>setTimeout(()=>tone(f,.14,'triangle',.13),i*70)); },
 };
 
 // ====== Kayıt ======
-const SAVE_KEY='balikKampi_v1';
+const SAVE_KEY='balikKampi_v2';
 let st;
 function fresh(){ return {money:0, carry:0, earned:0, lv:{worker:0,speed:0,blade:0,carrier:0,price:0,zone2:0,grill:0,chef:0}, tut:0, t2:0}; }
 function load(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&s.lv){ const f=fresh(); Object.assign(f,s); f.carry=f.carry||0; f.lv=Object.assign(fresh().lv,s.lv); return f; } }catch(e){} return fresh(); }
@@ -185,13 +190,17 @@ const padVisible=p=>st.lv[p.id]<p.costs.length && st.earned>=p.show && (!p.need|
 
 // ====== Dünya ======
 let grillIn=0, pendGin=0, grillCook=0, sandOut=0, pendSout=0, counter2=0, pendC2=0, cash2=0, customers2=[], chefs=[], cust2T=1, collect2T=0;
+let depot=0, pendDepot=0, shadows=[], splashes=[], boat=null;
 let player, river, belt, incoming, pileCount, counterStock, cashAmt, customers, workers, carriers, flyers, texts, harpoons, spawnT, custT, padProg, time=0, sliceT=0, pendCounter=0, collectT=0, confetti=[];
 let sid=0;
-function newRiverSausage(x,noGold){ const gold=!noGold && sid>3 && Math.random()<.13; return {id:sid++, x, y:RIVER_Y+(Math.random()*20-10), h:3, len:112, r:22, bob:Math.random()*6, targeted:false, seed:Math.random()*1000, gold}; }
+function newShadow(x){ return {x:x===undefined?rnd(-300,700):x, y:rnd(50,112), sp:rnd(12,30), s:rnd(.7,1.25), ph:Math.random()*6}; }
+function newFishState(x){ return {state:'idle',t:.3,x,bx:x,by:70}; }
 function initWorld(){
   player={x:120,y:300,dir:1,phase:0,stack:0,cool:0,moving:false,pickT:0,pend:0,carry:st.carry,sand:0};
   cam.x=player.x; cam.y=player.y;
-  river=[]; for(let i=0;i<3;i++) river.push(newRiverSausage(-40+i*170,true));
+  river=[]; shadows=[]; for(let i=0;i<14;i++) shadows.push(newShadow()); splashes=[]; depot=0; pendDepot=0;
+  boat={state:'away',t:30,x:-200,dwell:0,sold:false,warn:false};
+  player.fish=newFishState(FISH_SPOT.x);
   belt=[]; incoming=[]; pileCount=0; counterStock=0; cashAmt=0; pendCounter=0;
   customers=[]; flyers=[]; texts=[]; harpoons=[]; confetti=[];
   spawnT=0; custT=.5; padProg=st.padProg=(st.padProg||{});
@@ -202,7 +211,7 @@ function initWorld(){
   player.sand=0;
 }
 function addChef(){ chefs.push({x:470,y:400,dir:1,phase:0,sand:0,state:'toOut',wait:0,idle:0,moving:false}); }
-function addWorker(){ const s=WORKER_SPOTS[workers.length]; workers.push({x:s.x,y:s.y,cool:1.5+Math.random()*2,dir:1,throwT:0}); }
+function addWorker(){ const s=WORKER_SPOTS[workers.length]; workers.push({x:s.x,y:s.y,dir:1,fish:newFishState(s.x)}); }
 function addCarrier(){ carriers.push({x:60,y:470,dir:1,phase:0,stack:0,state:'toPile',wait:0,idle:0,moving:false}); }
 
 // ====== Giriş ======
@@ -239,35 +248,32 @@ function colH(o){ return 44+Math.min(o.stack||0,70)*2.5+Math.min(o.sand||0,40)*4
 function stackH(n){ return 44+Math.min(n,70)*2.5; }
 
 // ====== Güncelleme ======
-function canFire(){
-  if(incoming.length) return false;
-  if(belt.length===0) return true;
-  return belt.length===1 && belt[0].len<=42;
+function splash(x,y){ splashes.push({x,y,t:0}); }
+function payMoney(a){ const c=Math.min(st.carry,a); st.carry-=c; st.money=Math.max(0,st.money-(a-c)); }
+function fisherTick(f,dt,active,wr){
+  if(!active){ if(f.state!=='idle'){ f.state='idle'; f.t=.3; } return; }
+  f.t-=dt;
+  if(f.state==='idle'){ if(f.t>0 || depot+pendDepot>=DEPOT_MAX) return; f.state='cast'; f.t=.45; f.bx=f.x+rnd(-16,16); f.by=rnd(56,86); }
+  else if(f.state==='cast'){ if(f.t<=0){ f.state='wait'; f.t=rnd(wr[0],wr[1]); splash(f.bx,f.by); } }
+  else if(f.state==='wait'){ if(f.t<=0){ f.state='bite'; f.t=.5; if(f===player.fish) sfx.bite(); } }
+  else if(f.state==='bite'){ if(f.t<=0){ f.state='reel'; f.t=.3; catchFish(f); } }
+  else if(f.state==='reel'){ if(f.t<=0){ f.state='idle'; f.t=.25; } }
 }
-function tryHarpoon(sx,sy,who){
-  if(!canFire()) return false;
-  let best=null,bd=1e9;
-  for(const s of river){ if(s.targeted) continue; if(s.x<-30||s.x>400) continue; const d0=Math.abs(s.x-sx); if(d0>=260) continue; const d=d0-(s.gold?1000:0); if(d<bd){bd=d;best=s;} }
-  if(!best) return false;
-  best.targeted=true;
-  const h={sx,sy,s:best,t:0,phase:'shoot',who};
-  harpoons.push(h); incoming.push(h);
-  sfx.whoosh();
-  return true;
-}
-function landX(){
-  if(belt.length===0) return BLADE_X-SAUS_LEN/2;
-  const last=belt[belt.length-1]; return last.x-last.len/2-3-SAUS_LEN/2;
+function catchFish(f){
+  const gold=Math.random()<.08;
+  pendDepot++;
+  const fl=fly('fish',f.bx,f.by,0,DEPOT.x,DEPOT.y,22,.85,70,()=>{pendDepot--; depot++; sfx.thud(); if(st.tut===0) st.tut=1;});
+  fl.gold=gold; fl.seed=Math.random()*1000;
+  splash(f.bx,f.by); sfx.splash();
+  if(gold) goldBonus(f.bx,f.by);
 }
 function counterSlot(i){ const col=i%4, row=Math.floor(i/4); return {x:COUNTER.x1+14+col*16, y:COUNTER.y-4, h:17+row*2.4}; }
 
 function update(dt){
   time+=dt;
   // nehir
-  spawnT-=dt; if(spawnT<=0){ spawnT=rnd(6,8); const ns=newRiverSausage(-120); river.push(ns); if(ns.gold){ toast('✨ Altın balık geliyor!'); sfx.gold(); } }
-  for(const s of river){ if(!s.pulled) s.x+=22*dt; }
-  river=river.filter(s=>s.x<460 || s.pulled);
-
+  for(const sh of shadows){ sh.x+=sh.sp*dt; if(sh.x>760){ Object.assign(sh,newShadow(-320)); } }
+  for(const sp of splashes) sp.t+=dt; splashes=splashes.filter(sp=>sp.t<.8);
   // oyuncu hareketi (ekran yönü -> dünya yönü)
   let ux=0,uy=0,mag=0;
   if(joy.on){ const dx=joy.x-joy.ox, dy=joy.y-joy.oy, d=Math.hypot(dx,dy); if(d>6){ ux=dx/d; uy=dy/d; mag=Math.min(d,50)/50; } }
@@ -282,7 +288,7 @@ function update(dt){
   player.x+=mx*sp*dt; player.y+=my*sp*dt;
   player.moving=mag>.05;
   if(mag>.05){ player.dir=ux>=0?1:-1; player.phase+=dt*11; }
-  const inGap=player.x>GAP_TOP[0]+8&&player.x<GAP_TOP[1]-8;
+  const onWalk=player.x>WALK[0]+8&&player.x<WALK[1]-8;
   player.x=Math.max(FENCE.x1+12,Math.min((Z2()?ZONE2.x2:FENCE.x2)-12,player.x));
   if(Z2()){ const inMid=player.y>GAP_MID[0]+10&&player.y<GAP_MID[1]-10;
     if(!inMid){ if(px0<=FENCE.x2) player.x=Math.min(player.x,FENCE.x2-12); else player.x=Math.max(player.x,FENCE.x2+12); } }
@@ -290,42 +296,29 @@ function update(dt){
   if(Z2()){ const gx1=GRILL.x1-12,gx2=GRILL.x2+12,gy1=GRILL.y1-14,gy2=GRILL.y2+12;
     if(player.x>gx1&&player.x<gx2&&player.y>gy1&&player.y<gy2){ const d=[player.x-gx1,gx2-player.x,player.y-gy1,gy2-player.y], m=Math.min(...d);
       if(m===d[0]) player.x=gx1; else if(m===d[1]) player.x=gx2; else if(m===d[2]) player.y=gy1; else player.y=gy2; } }
-  player.y=Math.max(inGap?DOCK.y-6:FENCE.y1+14,Math.min(FENCE.y2-14,player.y));
+  player.y=Math.max(onWalk?BOARD_Y1+8:FENCE.y1+14,Math.min(FENCE.y2-14,player.y));
   // bant engeli
   const bx1=CONV.x1-12, bx2=BLADE_X+14, by1=CONV.y-22, by2=CONV.y+20;
   if(player.x>bx1&&player.x<bx2&&player.y>by1&&player.y<by2){
     const d=[player.x-bx1,bx2-player.x,player.y-by1,by2-player.y], m=Math.min(...d);
     if(m===d[0]) player.x=bx1; else if(m===d[1]) player.x=bx2; else if(m===d[2]) player.y=by1; else player.y=by2;
   }
+  // sandık engeli
+  { const dx1=DEPOT.x-DEPOT.w/2-10,dx2=DEPOT.x+DEPOT.w/2+10,dy1=DEPOT.y-DEPOT.h/2-12,dy2=DEPOT.y+DEPOT.h/2+10;
+    if(player.x>dx1&&player.x<dx2&&player.y>dy1&&player.y<dy2){ const d=[player.x-dx1,dx2-player.x,player.y-dy1,dy2-player.y], m=Math.min(...d);
+      if(m===d[0]) player.x=dx1; else if(m===d[1]) player.x=dx2; else if(m===d[2]) player.y=dy1; else player.y=dy2; } }
   // kamera
-  const tx=Math.max(70,Math.min(Z2()?470:300,player.x)), ty=Math.max(120,Math.min(600,player.y));
+  const tx=Math.max(70,Math.min(Z2()?560:360,player.x)), ty=Math.max(110,Math.min(690,player.y));
   cam.x+=(tx-cam.x)*Math.min(1,dt*4); cam.y+=(ty-cam.y)*Math.min(1,dt*4);
 
-  // zıpkın
-  player.cool-=dt;
-  if(dist(player.x,player.y,DOCK.x,DOCK.y)<22 && player.cool<=0){ if(tryHarpoon(player.x,player.y,'p')) player.cool=1.4; }
-  for(const w of workers){ w.cool-=dt; w.throwT=Math.max(0,w.throwT-dt); if(w.cool<=0){ if(tryHarpoon(w.x,w.y,'w')){ w.cool=rnd(4,5.5); w.throwT=.4; } else w.cool=.5; } }
-
-  for(const h of harpoons){
-    h.t+=dt;
-    if(h.phase==='shoot'){
-      if(h.t>=.35){ h.phase='pull'; h.t=0; h.s.pulled=true; h.f={x:h.s.x,y:h.s.y,h:h.s.h,len:h.s.len,r:h.s.r}; }
-    } else {
-      const dur=1.3, k=Math.min(1,h.t/dur), e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
-      const tx=landX(), ty=CONV.y, th=BELT_H+SAUS_R;
-      h.s.x=h.f.x+(tx-h.f.x)*e; h.s.y=h.f.y+(ty-h.f.y)*e; h.s.h=h.f.h+(th-h.f.h)*e+Math.sin(k*Math.PI)*70;
-      h.s.len=h.f.len+(SAUS_LEN-h.f.len)*e; h.s.r=h.f.r+(SAUS_R-h.f.r)*e;
-      if(k>=1){
-        h.done=true; sfx.thud();
-        river=river.filter(r=>r!==h.s);
-        incoming=incoming.filter(x=>x!==h);
-        belt.push({x:tx,len:SAUS_LEN,frost:1,seed:h.s.seed,cut:false,shake:.3,gold:h.s.gold});
-        if(h.s.gold) goldBonus(tx);
-        if(st.tut===0) st.tut=1;
-      }
-    }
-  }
-  harpoons=harpoons.filter(h=>!h.done);
+  // olta
+  fisherTick(player.fish,dt,dist(player.x,player.y,FISH_SPOT.x,FISH_SPOT.y)<18 && !player.moving,[1.8,3.2]);
+  for(const w of workers) fisherTick(w.fish,dt,true,[4,6]);
+  updateBoat(dt);
+  // sandıktan banda
+  { const last=belt[belt.length-1]; const left=last?last.x-last.len/2:1e9;
+    if(depot>0 && left>CONV.x1+SAUS_LEN+4){ depot--; belt.push({x:CONV.x1+SAUS_LEN/2,len:SAUS_LEN,frost:0,seed:Math.random()*1000,cut:false,shake:0,gold:false,hop:1}); } }
+  for(const b of belt) if(b.hop>0) b.hop=Math.max(0,b.hop-dt*2.5);
 
   // bant + dilimleme
   const rate=RATES[st.lv.blade];
@@ -419,7 +412,7 @@ function update(dt){
   }
   customers.filter(c=>c.state!=='leave').forEach((c,i)=>c.slot=i);
   for(const c of customers){
-    if(c.state==='leave'){ c.x+=50*dt; c.y+=14*dt; c.dir=1; c.phase+=dt*10; c.moving=true; continue; }
+    if(c.state==='leave'){ c.x+=18*dt; c.y+=42*dt; c.dir=1; c.phase+=dt*10; c.moving=true; continue; }
     const tx=QUEUE_X0-c.slot*QUEUE_DX;
     if(Math.abs(c.x-tx)>1){ c.x+=Math.sign(tx-c.x)*Math.min(50*dt,Math.abs(tx-c.x)); c.dir=tx>c.x?1:-1; c.phase+=dt*10; c.moving=true; }
     else { c.moving=false; c.dir=1;
@@ -442,7 +435,7 @@ function update(dt){
       }
     }
   }
-  customers=customers.filter(c=>c.x<460);
+  customers=customers.filter(c=>c.y<900);
 
   if(Z2()) updateZone2(dt);
   for(const f of flyers){ f.t+=dt; if(f.t>=f.dur){ f.dead=true; if(f.done) f.done(); } }
@@ -452,14 +445,39 @@ function update(dt){
   updMoney(); updHint();
 }
 let pendPile=0;
-function goldBonus(x){
-  const bonus=20*PRICES[st.lv.price]*3;
-  st.earned+=bonus;
-  floatText(x,CONV.y,'ALTIN BALIK! +$'+bonus,'#c98a00');
+function goldBonus(x,y){
+  const bonus=SLICES_PER*PRICES[st.lv.price]*4;
+  st.earned+=bonus; toast('✨ Altın balık! +$'+bonus);
+  floatText(x,y,'ALTIN BALIK! +$'+bonus,'#c98a00');
   for(let k=0;k<8;k++){ const share=k===7?bonus-Math.floor(bonus/8)*7:Math.floor(bonus/8);
-    setTimeout(()=>fly('cash',x,CONV.y,40,CASH.x+rnd(-14,14),CASH.y+rnd(-10,8),2,.7,60,()=>{cashAmt+=share;}),k*80); }
-  for(let i=0;i<24;i++) confetti.push({x,y:CONV.y,h:30,vx:rnd(-50,50),vy:rnd(-50,50),vh:rnd(120,240),t:0,c:['#ffd75a','#f0a91a','#fff3b0'][i%3]});
+    setTimeout(()=>fly('cash',x,y,30,CASH.x+rnd(-14,14),CASH.y+rnd(-10,8),2,.9,80,()=>{cashAmt+=share;}),k*80); }
+  for(let i=0;i<24;i++) confetti.push({x,y,h:20,vx:rnd(-50,50),vy:rnd(-50,50),vh:rnd(120,240),t:0,c:['#ffd75a','#f0a91a','#fff3b0'][i%3]});
   sfx.gold();
+}
+function boatOffer(){ const room=Math.max(0,DEPOT_MAX-depot-pendDepot), n=Math.min(12,room), unit=Math.round(SLICES_PER*PRICES[st.lv.price]*.55); return {n,cost:n*unit}; }
+function updateBoat(dt){
+  const b=boat;
+  if(b.state==='away'){ b.t-=dt; if(b.t<=0){ b.state='in'; b.x=-220; b.sold=false; b.warn=false; b.dwell=0; toast('⛵ Balıkçı teknesi geldi!'); sfx.horn(); } }
+  else if(b.state==='in'){ b.x+=48*dt; if(b.x>=BOAT_X){ b.x=BOAT_X; b.state='docked'; b.t=32; } }
+  else if(b.state==='docked'){
+    b.t-=dt;
+    const on=dist(player.x,player.y,BOAT_PAD.x,BOAT_PAD.y)<24;
+    if(!on){ b.dwell=0; b.warn=false; }
+    else if(!player.moving && !b.sold){
+      b.dwell=Math.min(PAD_WAIT,b.dwell+dt);
+      if(b.dwell>=PAD_WAIT){
+        const o=boatOffer();
+        if(o.n<=0){ if(!b.warn){ floatText(BOAT_PAD.x,BOAT_PAD.y,'Sandık dolu!','#c0392b'); b.warn=true; } }
+        else if(st.money+st.carry>=o.cost){
+          payMoney(o.cost); b.sold=true; sfx.buy(); b.t=Math.min(b.t,3);
+          for(let i=0;i<o.n;i++){ pendDepot++; setTimeout(()=>{ const f=fly('fish',b.x,BOAT_Y,16,DEPOT.x,DEPOT.y,22,.9,60,()=>{pendDepot--; depot++; sfx.pop();}); f.seed=Math.random()*1000; },i*110); }
+          floatText(BOAT_PAD.x,BOAT_PAD.y,'+'+o.n+' balık','#2349a8');
+        } else if(!b.warn){ floatText(BOAT_PAD.x,BOAT_PAD.y,'Para yetmiyor','#c0392b'); b.warn=true; }
+      }
+    }
+    if(b.t<=0) b.state='out';
+  }
+  else if(b.state==='out'){ b.x+=55*dt; if(b.x>820){ b.state='away'; b.t=rnd(55,80); } }
 }
 function grillSlot(i){ const col=i%3,row=Math.floor(i/3)%2,layer=Math.floor(i/6); return {x:GRILL.x1+8+col*9, y:GRILL.y1+10+row*10, h:24+layer*2.4}; }
 function soutSlot(i){ const col=i%3,row=Math.floor(i/3)%2,layer=Math.floor(i/6); return {x:SOUT.x-15+col*15, y:SOUT.y-10+row*18, h:3+layer*4.4}; }
@@ -517,7 +535,7 @@ function updateZone2(dt){
   if(cust2T<=0 && customers2.filter(c=>c.state!=='leave').length<Q2_MAX){
     cust2T=rnd(2.2,3.6);
     const pal=[['#f39a2a','#ffd166'],['#e8613a','#ffd9c0'],['#3fae6a','#d8f5e2'],['#8a5bd6','#e8dcff'],['#d9b23a','#fff3c4'],['#e05a8a','#ffd6e6']][Math.floor(Math.random()*6)];
-    customers2.push({x:760,y:QUEUE_Y,want:1+Math.floor(Math.random()*3),got:0,state:'walk',dir:-1,phase:0,coat:pal[0],trim:pal[1],takeT:0,slot:99,moving:true});
+    customers2.push({x:880,y:QUEUE_Y,want:1+Math.floor(Math.random()*3),got:0,state:'walk',dir:-1,phase:0,coat:pal[0],trim:pal[1],takeT:0,slot:99,moving:true});
   }
   customers2.filter(c=>c.state!=='leave').forEach((c,i)=>c.slot=i);
   for(const c of customers2){
@@ -538,7 +556,7 @@ function updateZone2(dt){
       }
     }
   }
-  customers2=customers2.filter(c=>c.y<820);
+  customers2=customers2.filter(c=>c.y<900);
 }
 function pileSlot(i){ const layer=Math.floor(i/20), j=i%20; return {x:PILE.x-22+(j%5)*11+(layer%2)*3, y:PILE.y-18+Math.floor(j/5)*11+(layer%2)*2, h:2+layer*2.3}; }
 function buy(p){
@@ -558,11 +576,12 @@ const hintEl=document.getElementById('hint');
 let hintTarget=null, hintTxt='';
 function updHint(){
   let t=null, txt='';
-  if(st.tut===0){ t=DOCK; txt='Zıpkın noktasına yürü'; }
+  if(st.tut===0){ t=FISH_SPOT; txt='Olta noktasına git, bekle'; }
   else if(st.tut===1){ t=PILE; txt='Dilimleri topla'; }
   else if(st.tut===2){ if(player.stack>0){ t=DROP; txt='Tezgâha bırak'; } else { t=PILE; txt='Dilimleri topla'; } }
   else if(st.tut===3){ if(cashAmt>0){ t=CASH; txt='Parayı topla'; } else txt='Müşteriler alıyor…'; }
   else if(st.tut===4){ const p=PADS[0]; if(st.earned>=p.show){ t=p; txt=st.money+st.carry>=p.costs[0]?'İşçi al: üstünde dur':'Para biriktir, işçi al ($'+p.costs[0]+')'; } }
+  if(!txt && st.tut>=5 && boat.state==='docked' && !boat.sold){ t=BOAT_PAD; txt='Tekneden toplu balık al'; }
   if(!txt && st.tut>=5){
     if(!Z2()){ const p=PADS.find(q=>q.id==='zone2'); if(padVisible(p) && st.money+st.carry>=p.costs[0]*.5 && !(padProg.zone2>0)){ t=p; txt='Yeni bölge açılabilir!'; } }
     else if(st.t2===0){ t=GIN; txt='Dilimleri ızgaraya bırak'; }
@@ -869,7 +888,7 @@ const DECOR=[];
     if(y>FENCE.y2 && y<QUEUE_Y+70 && x>FENCE.x1-40 && x<FENCE.x2+40) continue;
     DECOR.push({x,y,t:r<.32?'tree':r<.62?'bush':r<.8?'rock':'mound'});
   }
-  DECOR.push({x:544,y:450,t:'crate'},{x:544,y:430,t:'crate'},{x:330,y:640,t:'sign'});
+  DECOR.push({x:656,y:450,t:'crate'},{x:656,y:430,t:'crate'},{x:392,y:718,t:'sign'});
 })();
 const SNOWDOTS=(()=>{ const R=seeded(9), a=[]; for(let i=0;i<120;i++) a.push({x:-400+R()*1160,y:-300+R()*1300,rx:8+R()*30,ry:3+R()*9,a:.12+R()*.18}); return a; })();
 const FLOORDOTS=(()=>{ const R=seeded(5), a=[]; for(let i=0;i<70;i++) a.push({x:FENCE.x1+R()*(FENCE.x2-FENCE.x1),y:FENCE.y1+R()*(FENCE.y2-FENCE.y1),rx:2+R()*7,ry:1+R()*3,w:R()<.5}); return a; })();
@@ -901,8 +920,11 @@ function render(){
   for(let i=0;i<40;i++){ const x=((i*67+time*26)%1100)-400, y=RIVER.y1+18+((i*41)%80); ctx.beginPath(); ctx.moveTo(x,y); ctx.quadraticCurveTo(x+7,y-2.5,x+16,y); ctx.stroke(); }
   // yakın kıyı köpüğü
   ctx.fillStyle='rgba(255,255,255,.7)'; for(let x=-500;x<900;x+=14){ ell(x+((time*10)%14),RIVER.y2-2+Math.sin(x*.05+1)*3,6,2); ctx.fill(); }
-  // nehirdeki balıkların halkaları
-  for(const s of river){ if(s.pulled) continue; ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=2; const r=1+((time*.7+s.bob)%1); ell(s.x,s.y+s.r*.2,s.len*.55*r,s.r*.7*r); ctx.stroke(); ctx.fillStyle='rgba(20,60,150,.25)'; ell(s.x+3,s.y+4,s.len*.5,s.r*.6); ctx.fill(); }
+  // sudaki balık gölgeleri
+  for(const sh of shadows){ const w=Math.sin(time*5+sh.ph)*.25;
+    ctx.save(); ctx.translate(sh.x,sh.y); ctx.scale(sh.s,sh.s); ctx.fillStyle='rgba(12,35,95,.28)';
+    ell(0,0,12,4.2); ctx.fill(); ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(-17,-4+w*4); ctx.lineTo(-17,4+w*4); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  for(const sp of splashes){ const k=sp.t/.8; ctx.strokeStyle='rgba(255,255,255,'+(.8*(1-k))+')'; ctx.lineWidth=2; ell(sp.x,sp.y,4+k*16,2.5+k*9); ctx.stroke(); }
   // kamp zemini
   ctx.fillStyle='rgba(60,70,110,.12)'; rr(FENCE.x1-4,FENCE.y1-2,FENCE.x2-FENCE.x1+10,FENCE.y2-FENCE.y1+10,10); ctx.fill();
   const fg=ctx.createLinearGradient(FENCE.x1,FENCE.y1,FENCE.x2,FENCE.y2); fg.addColorStop(0,'#e6b9a2'); fg.addColorStop(1,'#d39d85');
@@ -914,7 +936,7 @@ function render(){
     ctx.fillStyle='rgba(60,70,110,.12)'; rr(ZONE2.x1,ZONE2.y1-2,ZONE2.x2-ZONE2.x1+6,ZONE2.y2-ZONE2.y1+10,10); ctx.fill();
     const fg2=ctx.createLinearGradient(ZONE2.x1,ZONE2.y1,ZONE2.x2,ZONE2.y2); fg2.addColorStop(0,'#e3c0a0'); fg2.addColorStop(1,'#d2a585');
     ctx.fillStyle=fg2; rr(ZONE2.x1-4,ZONE2.y1,ZONE2.x2-ZONE2.x1+4,ZONE2.y2-ZONE2.y1,6); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,.1)'; for(let i=0;i<14;i++){ for(let j=0;j<16;j++){ if((i+j)%2) ctx.fillRect(ZONE2.x1+i*13.6,ZONE2.y1+j*25.6,13.6,25.6); } }
+    ctx.fillStyle='rgba(255,255,255,.1)'; { const tw=(ZONE2.x2-ZONE2.x1)/16, th=(ZONE2.y2-ZONE2.y1)/19; for(let i=0;i<16;i++){ for(let j=0;j<19;j++){ if((i+j)%2) ctx.fillRect(ZONE2.x1+i*tw,ZONE2.y1+j*th,tw,th); } } }
     ctx.strokeStyle='rgba(120,70,55,.18)'; ctx.lineWidth=6; rr(ZONE2.x1+3,ZONE2.y1+3,ZONE2.x2-ZONE2.x1-6,ZONE2.y2-ZONE2.y1-6,6); ctx.stroke();
   } else {
     ctx.setLineDash([10,8]); ctx.strokeStyle='rgba(70,100,170,.45)'; ctx.lineWidth=3; rr(ZONE2.x1+14,ZONE2.y1+10,ZONE2.x2-ZONE2.x1-24,ZONE2.y2-ZONE2.y1-20,10); ctx.stroke(); ctx.setLineDash([]);
@@ -937,13 +959,28 @@ function render(){
     ctx.fillStyle='#e0603a'; ctx.font='900 9px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('DİLİM BIRAK',GIN.x,GIN.y+9);
   }
   for(const p of PADS){ if(padVisible(p)) drawPad(p); }
-  // iskele
-  box(GAP_TOP[0]-2,FENCE.y1-30,GAP_TOP[1]+2,FENCE.y1+6,-2,3,'#c99467','#9a6a45','#8a5c3a');
-  ground(3); ctx.strokeStyle='rgba(110,70,40,.55)'; ctx.lineWidth=1; for(let x=GAP_TOP[0]+7;x<GAP_TOP[1];x+=9){ ctx.beginPath(); ctx.moveTo(x,FENCE.y1-30); ctx.lineTo(x,FENCE.y1+6); ctx.stroke(); }
-  // zıpkın halkası
+  // kıyı iskelesi
+  box(WALK[0]-2,BOARD_Y1,WALK[1]+2,FENCE.y1+6,-3,3,'#c99467','#9a6a45','#8a5c3a');
+  box(BOAT_X-14,BOAT_Y+14,BOAT_X+14,BOARD_Y1+2,-3,3,'#c99467','#9a6a45','#8a5c3a');
+  ground(3); ctx.strokeStyle='rgba(110,70,40,.5)'; ctx.lineWidth=1;
+  for(let y=BOARD_Y1+7;y<FENCE.y1+6;y+=7){ ctx.beginPath(); ctx.moveTo(WALK[0]-2,y); ctx.lineTo(WALK[1]+2,y); ctx.stroke(); }
+  for(let y=BOAT_Y+20;y<BOARD_Y1;y+=7){ ctx.beginPath(); ctx.moveTo(BOAT_X-14,y); ctx.lineTo(BOAT_X+14,y); ctx.stroke(); }
+  // olta noktası
   ground(3.2); const dp=1+Math.sin(time*4)*.07;
-  ctx.fillStyle='rgba(255,255,255,.28)'; ell(DOCK.x,DOCK.y-6,16*dp,14*dp); ctx.fill();
-  ctx.strokeStyle='#fff'; ctx.lineWidth=2.6; ctx.setLineDash([5,4]); ell(DOCK.x,DOCK.y-6,16*dp,14*dp); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,.28)'; ell(FISH_SPOT.x,FISH_SPOT.y,15*dp,11*dp); ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2.6; ctx.setLineDash([5,4]); ell(FISH_SPOT.x,FISH_SPOT.y,15*dp,11*dp); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#fff'; ctx.font='900 7px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('OLTA',FISH_SPOT.x,FISH_SPOT.y+16);
+  // tekne alımı
+  if(boat.state==='docked' && !boat.sold){
+    const o=boatOffer(), on=dist(player.x,player.y,BOAT_PAD.x,BOAT_PAD.y)<24;
+    ground(3.4); ctx.translate(BOAT_PAD.x,BOAT_PAD.y); const sc=on?1.06:1; ctx.scale(sc,sc);
+    ctx.fillStyle='rgba(20,110,140,.92)'; rr(-34,-16,68,32,8); ctx.fill();
+    ctx.strokeStyle='#fff'; ctx.lineWidth=2; rr(-34,-16,68,32,8); ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.font='900 11px system-ui,sans-serif'; ctx.fillText(o.n>0?o.n+' balık':'Sandık dolu',0,-5);
+    ctx.font='900 12px system-ui,sans-serif'; ctx.fillStyle=st.money+st.carry>=o.cost?'#ffe27a':'#ffb3a8'; if(o.n>0) ctx.fillText('$ '+fmt(o.cost),0,8);
+    if(boat.dwell>0&&boat.dwell<PAD_WAIT){ ctx.strokeStyle='#ffcf33'; ctx.lineWidth=3.5; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,0,40,-Math.PI/2,-Math.PI/2+Math.PI*2*boat.dwell/PAD_WAIT); ctx.stroke(); ctx.lineCap='butt'; }
+  }
   // bant gövdesi
   box(CONV.x1-6,CONV.y-14,BLADE_X+6,CONV.y+14,0,BELT_H,'#55617d','#1f4bb0','#2a5fd0');
   ground(BELT_H); ctx.save(); rr(CONV.x1-2,CONV.y-11,BLADE_X-CONV.x1+4,22,3); ctx.clip();
@@ -957,7 +994,7 @@ function render(){
   const add=(x,y,h,fn)=>{ objs.push({k:P(x,y,0).y+(h||0),fn}); };
   const logS=logSprite();
   const logAt=(x,y)=>{ if(onScreen(x,y,30)) add(x,y,0,()=>blit(logS,x,y,0)); };
-  for(let x=FENCE.x1;x<=FENCE.x2+.1;x+=9){ if(x>GAP_TOP[0]&&x<GAP_TOP[1]) continue; logAt(x,FENCE.y1); }
+  for(let x=FENCE.x1;x<=FENCE.x2+.1;x+=9){ if(x>WALK[0]-4&&x<WALK[1]+4) continue; logAt(x,FENCE.y1); }
   for(let y=FENCE.y1+10;y<=FENCE.y2;y+=10){ logAt(FENCE.x1,y); if(!(Z2()&&y>GAP_MID[0]&&y<GAP_MID[1])) logAt(FENCE.x2,y); }
   if(Z2()){
     for(let x=FENCE.x2+9;x<=ZONE2.x2+.1;x+=9) logAt(x,ZONE2.y1);
@@ -971,11 +1008,32 @@ function render(){
     if(d.t==='crate') add(d.x,d.y,0,()=>box(d.x-9,d.y-9,d.x+9,d.y+9,0,16,'#d9a066','#a8733f','#c08548','#8a5a30'));
     else if(d.t==='sign') add(d.x,d.y,0,()=>{ at(d.x,d.y,0); ctx.fillStyle='rgba(30,40,80,.18)'; ell(5,0,14,4,-.3); ctx.fill(); ctx.fillStyle='#b9743a'; ctx.beginPath(); ctx.moveTo(-12,0); ctx.lineTo(-2,-34); ctx.lineTo(2,-34); ctx.lineTo(12,0); ctx.lineTo(8,0); ctx.lineTo(0,-28); ctx.lineTo(-8,0); ctx.closePath(); ctx.fill(); ctx.fillStyle='#f0d4a4'; rr(-9,-30,18,20,2); ctx.fill(); drawSlice(0,-20,.9); });
     else add(d.x,d.y,0,()=>blit(spr[d.t],d.x,d.y,0)); }
-  // nehir balıkları
-  for(const s of river){ if(s.pulled||!onScreen(s.x,s.y,120)) continue;
-    add(s.x,s.y,-200,()=>{ at(s.x,s.y,s.h+Math.sin(time*1.6+s.bob)*1.5); drawFish(s.len*XLEN,s.r,XANG+Math.sin(time+s.bob)*.04,1,s.seed,false,s.gold,0,-1); }); }
+  // buz sandığı
+  add(DEPOT.x,DEPOT.y+DEPOT.h/2,0,()=>{
+    box(DEPOT.x-DEPOT.w/2,DEPOT.y-DEPOT.h/2,DEPOT.x+DEPOT.w/2,DEPOT.y+DEPOT.h/2,0,18,'#dff1ff','#3a7fd0','#4a90e0','#2f6fc0');
+    ground(18.2); ctx.fillStyle='#b7dcff'; rr(DEPOT.x-DEPOT.w/2+3,DEPOT.y-DEPOT.h/2+3,DEPOT.w-6,DEPOT.h-6,3); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.7)'; for(let i=0;i<6;i++){ ell(DEPOT.x-14+i*6,DEPOT.y-8+(i%3)*7,2.6,1.8); ctx.fill(); }
+    const n=Math.min(depot,18);
+    for(let i=0;i<n;i++){ const col=i%2,row=Math.floor(i/2)%3,layer=Math.floor(i/6); at(DEPOT.x-6+col*12-layer*2,DEPOT.y-9+row*9,20+layer*5); drawFish(30*XLEN,7,XANG,0,i*13.7,false,false,0,-1); }
+    at(DEPOT.x,DEPOT.y,20+Math.ceil(Math.min(depot,18)/6)*5+30);
+    ctx.font='900 12px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineWidth=4; ctx.strokeStyle='#fff';
+    const lab=depot>=DEPOT_MAX?'DOLU':depot+'/'+DEPOT_MAX; ctx.strokeText(lab,0,0); ctx.fillStyle=depot>=DEPOT_MAX?'#c0392b':'#2f6fc0'; ctx.fillText(lab,0,0);
+  });
+  // balıkçı teknesi
+  if(boat.state!=='away' && onScreen(boat.x,BOAT_Y,160)) add(boat.x,BOAT_Y,-300,()=>{
+    const x=boat.x, y=BOAT_Y, bh=Math.sin(time*2)*1.2;
+    ground(0); ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=2; ell(x,y,52+Math.sin(time*3)*3,18); ctx.stroke();
+    if(boat.state!=='docked'){ ctx.fillStyle='rgba(255,255,255,.55)'; for(let i=0;i<4;i++){ ell(x-54-i*12,y+(i%2?6:-6),5-i,2); ctx.fill(); } }
+    box(x-44,y-13,x+40,y+13,-4+bh,9+bh,'#9c6b42','#6b4426','#7f5232','#5a3820');
+    box(x-44,y-13,x+40,y+13,9+bh,11+bh,'#f2f2f2','#d64b3a','#e05a46');
+    box(x+40,y-8,x+50,y+8,-2+bh,11+bh,'#9c6b42','#6b4426','#7f5232');
+    box(x-30,y-9,x-6,y+9,11+bh,30+bh,'#2f7fe0','#e9eef6','#ffffff','#2a5fb0');
+    box(x+8,y-1.5,x+11,y+1.5,11+bh,62+bh,'#c99467','#9a6a45','#8a5c3a');
+    const t=P(x+9.5,y,62+bh), f2=P(x+9.5,y,50+bh); screen(); ctx.fillStyle='#e0533d'; ctx.beginPath(); ctx.moveTo(t.x,t.y); ctx.lineTo(t.x+16*Z+Math.sin(time*6)*2*Z,t.y+4*Z); ctx.lineTo(f2.x,f2.y); ctx.closePath(); ctx.fill();
+    if(!boat.sold){ for(let i=0;i<5;i++){ at(x+16+(i%2)*10,y-6+i*3,12+bh+Math.floor(i/2)*3); drawFish(26*XLEN,6,XANG,0,i*7.1,false,false,0,-1); } }
+  });
   // bant balıkları
-  for(const b of belt) add(b.x,CONV.y+14,0,()=>{ const sh=b.shake>0?Math.sin(time*60)*b.shake*4:0; at(b.x,CONV.y,BELT_H+SAUS_R*.95+sh); drawFish(b.len*XLEN,SAUS_R,XANG,b.frost,b.seed,b.cut,b.gold,SAUS_LEN*XLEN); });
+  for(const b of belt) add(b.x,CONV.y+14,0,()=>{ const sh=b.shake>0?Math.sin(time*60)*b.shake*4:0; at(b.x-(b.hop||0)*30,CONV.y,BELT_H+SAUS_R*.95+sh+Math.sin((b.hop||0)*Math.PI)*22); drawFish(b.len*XLEN,SAUS_R,XANG,b.frost,b.seed,b.cut,b.gold,SAUS_LEN*XLEN); });
   // bıçak
   add(BLADE_X+4,CONV.y+16,1,()=>{
     const bl=belt.length&&belt[0].x+belt[0].len/2>=BLADE_X-1?Math.sin(time*30)*4:0;
@@ -1056,15 +1114,21 @@ function render(){
   objs.sort((a,b)=>a.k-b.k);
   for(const o of objs) o.fn();
 
-  // zıpkın ipleri + çekilen balık
-  for(const h of harpoons){
-    const s=h.s, a=P(h.sx,h.sy,26);
-    let e;
-    if(h.phase==='shoot'){ const k=Math.min(1,h.t/.35); const b=P(s.x,s.y,s.h); e={x:a.x+(b.x-a.x)*k,y:a.y+(b.y-a.y)*k}; }
-    else e=P(s.x,s.y,s.h);
-    screen(); ctx.strokeStyle='#f1c232'; ctx.lineWidth=Math.max(1.5,Z*1.6); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.quadraticCurveTo((a.x+e.x)/2,(a.y+e.y)/2+10*Z,e.x,e.y); ctx.stroke();
-    if(h.phase==='pull'){ const g=P(s.x,s.y,0); screen(); ctx.fillStyle='rgba(30,40,80,.15)'; ctx.beginPath(); ctx.ellipse(g.x,g.y,s.len*.45*Z,s.r*.5*Z,XANG,0,Math.PI*2); ctx.fill(); at(s.x,s.y,s.h); drawFish(s.len*XLEN,s.r,XANG,1,s.seed,false,s.gold,0,Math.cos(Math.min(1,h.t/1.3)*Math.PI)); }
-    else { screen(); ctx.fillStyle='#d6dde9'; ctx.save(); ctx.translate(e.x,e.y); ctx.rotate(Math.atan2(e.y-a.y,e.x-a.x)); ctx.scale(Z,Z); ctx.beginPath(); ctx.moveTo(7,0); ctx.lineTo(-4,-4.5); ctx.lineTo(-2,0); ctx.lineTo(-4,4.5); ctx.closePath(); ctx.fill(); ctx.restore(); }
+  // oltalar
+  const rods=[{p:player,f:player.fish,show:dist(player.x,player.y,FISH_SPOT.x,FISH_SPOT.y)<18}];
+  for(const w of workers) rods.push({p:w,f:w.fish,show:true});
+  for(const r of rods){ if(!r.show) continue; const f=r.f, p=r.p;
+    const hand=P(p.x+3,p.y-2,26), tip=P(p.x+4,p.y-34,58+(f.state==='bite'?-6:0));
+    screen(); ctx.strokeStyle='#5a3a22'; ctx.lineWidth=Math.max(1.4,Z*1.5); ctx.beginPath(); ctx.moveTo(hand.x,hand.y); ctx.lineTo(tip.x,tip.y); ctx.stroke();
+    if(f.state==='idle'||f.state==='reel') continue;
+    let bb;
+    if(f.state==='cast'){ const k=1-Math.max(0,f.t)/.45, e=P(f.bx,f.by,0); bb={x:tip.x+(e.x-tip.x)*k,y:tip.y+(e.y-tip.y)*k-Math.sin(k*Math.PI)*30*Z}; }
+    else { const dip=f.state==='bite'?-3+Math.sin(time*40)*1.5:Math.sin(time*3+f.bx)*.8; bb=P(f.bx,f.by,1+dip); }
+    ctx.strokeStyle='rgba(255,255,255,.85)'; ctx.lineWidth=Math.max(.8,Z*.7); ctx.beginPath(); ctx.moveTo(tip.x,tip.y); ctx.quadraticCurveTo((tip.x+bb.x)/2,(tip.y+bb.y)/2+12*Z,bb.x,bb.y); ctx.stroke();
+    ctx.save(); ctx.translate(bb.x,bb.y); ctx.scale(Z,Z);
+    ctx.fillStyle='#fff'; ell(0,0,3.4,3.4); ctx.fill(); ctx.fillStyle='#e0533d'; ctx.beginPath(); ctx.arc(0,0,3.4,Math.PI,0); ctx.fill();
+    if(f.state==='bite'){ ctx.fillStyle='#ffcf33'; ctx.strokeStyle='#a36d00'; ctx.lineWidth=1.5; ctx.font='900 16px system-ui,sans-serif'; ctx.textAlign='center'; ctx.strokeText('!',0,-12); ctx.fillText('!',0,-12); }
+    ctx.restore();
   }
   // uçanlar
   const hud=document.querySelector('.money').getBoundingClientRect();
@@ -1073,7 +1137,7 @@ function render(){
     if(f.target){ x2=f.target.x; y2=f.target.y; h2=colH(f.target); }
     if(x2===-1){ const u=unproj(hud.left+22,hud.top+hud.height/2); x2=u.x; y2=u.y; h2=0; }
     const x=f.x1+(x2-f.x1)*k, y=f.y1+(y2-f.y1)*k, h=f.h1+(h2-f.h1)*k+Math.sin(k*Math.PI)*f.arc;
-    at(x,y,h); if(f.type==='slice') drawSlice(0,0,1); else if(f.type==='sand') drawSand(0,0,1); else drawBill(0,0,k*5);
+    at(x,y,h); if(f.type==='slice') drawSlice(0,0,1); else if(f.type==='sand') drawSand(0,0,1); else if(f.type==='fish') drawFish(30*XLEN,7,XANG+Math.sin(k*9)*.5,0,f.seed||1,false,f.gold,0,-1); else drawBill(0,0,k*5);
   }
   // müşteri baloncuğu
   for(const c of customers){ if(c.state==='leave'||c.slot!==0||c.moving) continue;
