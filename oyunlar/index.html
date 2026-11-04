@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Safa Özen Oyunları — Tarayıcıda ücretsiz oyna</title>
+<meta name="description" content="Safa Özen'in geliştirdiği ücretsiz web oyunları. İndirme yok, telefonda ve bilgisayarda tarayıcıdan hemen oyna.">
+<meta property="og:title" content="Safa Özen Oyunları">
+<meta property="og:description" content="İndirme yok — telefonda ve bilgisayarda hemen oyna. 18+ ücretsiz web oyunu.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://sozenn.github.io/orbit-hop-play/oyunlar/">
+<meta name="theme-color" content="#120d2b">
+<link rel="icon" href="../icon.svg">
+<style>
+:root{--bg:#120d2b;--card:#1d1640;--card2:#261d52;--txt:#f3efff;--mut:#a99fd0;--acc:#ffcf4a;--acc2:#ff5c8a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--txt);font-family:ui-rounded,"Avenir Next",Nunito,system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh;
+  background-image:radial-gradient(circle at 15% 0%,#3a2a8a55,transparent 45%),radial-gradient(circle at 90% 20%,#ff5c8a33,transparent 40%);
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+.wrap{max-width:1100px;margin:0 auto;padding:28px 18px 60px}
+header{text-align:center;padding:26px 0 18px}
+.logo{font-size:44px;line-height:1}
+h1{font-size:clamp(28px,6vw,46px);font-weight:900;letter-spacing:-.5px;margin-top:8px}
+h1 span{background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--mut);margin-top:8px;font-size:16px}
+.bar{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:22px 0 26px}
+#q{flex:1 1 260px;max-width:420px;background:var(--card);border:1px solid #3a2f73;color:var(--txt);border-radius:14px;padding:12px 16px;font-size:16px;outline:none}
+#q:focus{border-color:var(--acc)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:100%}
+.chip{background:var(--card);border:1px solid #3a2f73;color:var(--mut);border-radius:99px;padding:8px 14px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit}
+.chip.on{background:var(--acc);border-color:var(--acc);color:#241a00}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.g{background:var(--card);border-radius:20px;overflow:hidden;display:flex;flex-direction:column;text-decoration:none;color:inherit;
+  border:1px solid #2f2563;transition:transform .15s,border-color .15s,box-shadow .15s}
+.g:hover,.g:focus-visible{transform:translateY(-4px);border-color:var(--acc);box-shadow:0 12px 30px #0006;outline:none}
+.art{height:130px;display:grid;place-items:center;font-size:62px;position:relative;text-shadow:0 6px 14px #0005}
+.badge{position:absolute;top:10px;left:10px;font-size:11px;font-weight:900;padding:4px 8px;border-radius:8px;background:var(--acc2);color:#fff;letter-spacing:.5px}
+.ext{position:absolute;top:10px;right:10px;font-size:11px;font-weight:800;padding:4px 8px;border-radius:8px;background:#0006;color:#fff}
+.body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.body h2{font-size:19px;font-weight:900}
+.body p{color:var(--mut);font-size:14px;line-height:1.4;flex:1}
+.foot{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.tag{font-size:12px;color:var(--mut);background:var(--card2);padding:4px 9px;border-radius:8px}
+.play{background:linear-gradient(90deg,var(--acc),#ffb02e);color:#241a00;font-weight:900;font-size:14px;padding:8px 16px;border-radius:11px}
+.empty{text-align:center;color:var(--mut);padding:40px 0;display:none}
+footer{text-align:center;color:var(--mut);font-size:13px;margin-top:44px;line-height:1.8}
+footer a{color:var(--acc)}
+.share{margin-top:10px;background:#25d366;color:#fff;border:0;border-radius:12px;padding:10px 18px;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">🎮</div>
+    <h1><span>Safa Özen</span> Oyunları</h1>
+    <p class="sub">İndirme yok, üyelik yok. Telefonda ve bilgisayarda hemen oyna.</p>
+  </header>
+
+  <div class="bar">
+    <input id="q" type="search" placeholder="Oyun ara…" aria-label="Oyun ara">
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <main class="grid" id="grid"></main>
+  <p class="empty" id="empty">Bu aramaya uygun oyun bulunamadı.</p>
+
+  <footer>
+    <button class="share" id="share">📲 WhatsApp'ta paylaş</button>
+    <p style="margin-top:14px">Geliştirici: Safa Özen · <a href="mailto:mybooks5096@gmail.com">mybooks5096@gmail.com</a></p>
+    <p><a href="https://safaozen.itch.io" target="_blank" rel="noopener">itch.io sayfam</a> · <a href="../privacy.html">Gizlilik</a></p>
+  </footer>
+</div>
+
+<script>
+const B = 'https://sozenn.github.io/';
+// Yeni oyun eklemek için bu listeye bir satır eklemen yeterli.
+const GAMES = [
+  {n:"Balık Kampı", e:"🐟", c:["#1b6ea8","#7fd3ff"], cat:"Tycoon", url:B+"balik-kampi/", d:"Buzlu nehirden dev somon yakala, dilimle, sat ve kampını büyüt.", yeni:1},
+  {n:"Mahalle Fırını", e:"🥖", c:["#b5651d","#ffd08a"], cat:"Tycoon", url:B+"koy-firini/", d:"Malzeme topla, un öğüt, fırında pişir, sat; kafeni ve şubelerini büyüt.", yeni:1},
+  {n:"Kodvadi", e:"💻", c:["#2b2f77","#5ee7df"], cat:"Tycoon", url:B+"plaza-holding/", d:"Ekibini kur, yazılım üret, şirketleri satın al, holdingini halka arz et.", yeni:1},
+  {n:"Mahalle Fırını 3D", e:"🍞", c:["#8a4b16","#f6b26b"], cat:"Tycoon", url:B+"mahalle-firini-3d/", d:"Mahalle fırınını bu kez 3 boyutlu dünyada işlet."},
+  {n:"Beaver Valley", e:"🦫", c:["#3d6b2a","#a8d672"], cat:"Macera", url:B+"beaver-valley-play/", d:"Sevimli kunduz Badi ile vadiyi keşfet, odun topla, kendi yuvanı kur."},
+  {n:"Bilye Atölyesi", e:"🔮", c:["#5b2a86","#ff9de2"], cat:"Bulmaca", url:B+"bilye-atolyesi/", d:"Üç bilye oyunu bir arada: Mahalle Misketi, Ayrıştırma Atölyesi, Bilye Pisti."},
+  {n:"Öznur'un Şişeleri", e:"🧪", c:["#a12a5e","#ffb3c7"], cat:"Bulmaca", url:B+"orbit-hop-play/oznurun-siseleri/", d:"Renkli sıvıları şişeler arasında dök; her şişe tek renk olunca kazan."},
+  {n:"Torna Ustası", e:"🪵", c:["#7a4a1e","#e9b77a"], cat:"Beceri", url:B+"orbit-hop-play/torna-ustasi/", d:"Dönen kütüğü keskilerle yont, hedef şekli tam tuttur."},
+  {n:"Işın Ustası", e:"🔦", c:["#103a5c","#ffe066"], cat:"Bulmaca", url:B+"orbit-hop-play/isin-ustasi/", d:"Aynaları çevir, ışını hedefe ulaştır."},
+  {n:"Neon Bölge", e:"🟩", c:["#ff4fd8","#a6ff3d"], cat:"Aksiyon", url:B+"orbit-hop-play/neon-bolge/", d:"Kuleni kaydır, mermilerinle alanı kendi rengine boya, bölgeyi kap."},
+  {n:"Ses Yolu", e:"🎤", c:["#1d3557","#e63946"], cat:"Beceri", url:B+"orbit-hop-play/ses-yolu/", d:"Sesinle sür: kalın sesle araba basıklaşır, ince sesle incelir. (Mikrofon gerekir)"},
+  {n:"Minik Metropol", e:"🏙️", c:["#1f4e79","#9ad0ec"], cat:"Strateji", url:B+"orbit-hop-play/minik-metropol/", d:"Telefonda oynanan 3D şehir kurma oyunu. Şehrini sıfırdan inşa et."},
+  {n:"Fırıncı Fikret", e:"🥐", c:["#4a3b8f","#ffcc66"], cat:"Platform", url:B+"orbit-hop-play/firinci-fikret/", d:"8-bit platform macerası: farelerin çaldığı ekşi mayayı 4 bölümde kurtar."},
+  {n:"Pofi'nin Yıldız Koşusu", e:"⭐", c:["#ff9a8b","#ffe29f"], cat:"Platform", url:B+"orbit-hop-play/pofi/", d:"Sevimli Pofi ile 3D dünyada yıldızları topla."},
+  {n:"Bulut Pilotları 2", e:"✈️", c:["#ff627d","#ffbd61"], cat:"Aksiyon", url:B+"orbit-hop-play/ucak-macerasi/", d:"Uçağınla gökyüzünde uç, engellerden kaç, filonu büyüt."},
+  {n:"Orbit Hop", e:"🪐", c:["#0b0820","#6c4cff"], cat:"Beceri", url:B+"orbit-hop-play/", d:"Gezegenden gezegene zıpla, yörüngeyi kaçırma."},
+  {n:"Sucuk Kampı", e:"🌭", c:["#8b1e1e","#ff8a65"], cat:"Tycoon", url:B+"orbit-hop-play/sucuk-kampi/", d:"Nehirden dev donmuş sucukları zıpkınla, dilimle ve sat."},
+  {n:"Buz Yokuşu", e:"🐧", c:["#3a7bd5","#e0f4ff"], cat:"Aksiyon", url:"https://safaozen.itch.io/buz-yokusu", d:"Penguenle kızakla yokuştan aşağı kay, altın topla, karakter ve kızak satın al.", ext:"itch.io"},
+  {n:"Galaxy Siege", e:"🚀", c:["#0f0c29","#7b2ff7"], cat:"Aksiyon", url:"https://safaozen.itch.io", d:"Uzay temalı nişancı oyunu: galaksiyi istilacılara karşı savun.", ext:"itch.io"},
+];
+
+const grid = document.getElementById('grid'), q = document.getElementById('q'), chips = document.getElementById('chips');
+const cats = ["Tümü", ...new Set(GAMES.map(g => g.cat))];
+let cat = "Tümü";
+
+cats.forEach(c => {
+  const b = document.createElement('button');
+  b.className = 'chip' + (c === cat ? ' on' : '');
+  b.textContent = c;
+  b.onclick = () => { cat = c; [...chips.children].forEach(x => x.classList.toggle('on', x === b)); render(); };
+  chips.appendChild(b);
+});
+
+const norm = s => s.toLocaleLowerCase('tr').normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+function render() {
+  const t = norm(q.value.trim());
+  const list = GAMES.filter(g => (cat === "Tümü" || g.cat === cat) && (!t || norm(g.n + ' ' + g.d + ' ' + g.cat).includes(t)));
+  grid.innerHTML = list.map(g => `
+    <a class="g" href="${g.url}" ${g.ext ? 'target="_blank" rel="noopener"' : ''}>
+      <div class="art" style="background:linear-gradient(135deg,${g.c[0]},${g.c[1]})">
+        ${g.yeni ? '<span class="badge">YENİ</span>' : ''}
+        ${g.ext ? `<span class="ext">${g.ext} ↗</span>` : ''}
+        ${g.e}
+      </div>
+      <div class="body">
+        <h2>${g.n}</h2>
+        <p>${g.d}</p>
+        <div class="foot"><span class="tag">${g.cat}</span><span class="play">▶ Oyna</span></div>
+      </div>
+    </a>`).join('');
+  document.getElementById('empty').style.display = list.length ? 'none' : 'block';
+}
+q.addEventListener('input', render);
+render();
+
+document.getElementById('share').onclick = () => {
+  const url = location.href.split('#')[0];
+  const text = 'Ücretsiz oyunlarıma göz at, indirmeden hemen oyna: ' + url;
+  if (navigator.share) navigator.share({title: 'Safa Özen Oyunları', text, url}).catch(() => {});
+  else window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+};
+</script>
+</body>
+</html>
