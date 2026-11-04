@@ -57,7 +57,7 @@
       <li>Müşteriler öder. Para sırtında birikir; istersen <b>kasaya</b> bırak.</li><li>Parayla <b>işçi</b> ve <b>geliştirme</b> al.</li>
     </ul>
     <button class="btn" id="playBtn">Oyna</button>
-    <div class="ver">v2.1</div>
+    <div class="ver">v2.2</div>
   </div>
 </div>
 
@@ -95,6 +95,7 @@ const PADS=[
   {id:'carrier',x:82, y:404, costs:[500,1300],     show:450, label:'Taşıyıcı'},
   {id:'price',  x:166,y:440, costs:[600,1500,3500],show:800, label:'Baharat'},
 ];
+const PAD_WAIT=1.0;
 const SPEEDS=[92,106,120,136];
 const RATES=[2,2.8,3.8,5];
 const PRICES=[3,4,5,7];
@@ -171,7 +172,7 @@ function initWorld(){
   river=[]; for(let i=0;i<3;i++) river.push(newRiverSausage(-40+i*170));
   belt=[]; incoming=[]; pileCount=0; counterStock=0; cashAmt=0; pendCounter=0;
   customers=[]; flyers=[]; texts=[]; harpoons=[]; confetti=[];
-  spawnT=0; custT=.5; padProg={};
+  spawnT=0; custT=.5; padProg=st.padProg=(st.padProg||{});
   workers=[]; for(let i=0;i<st.lv.worker;i++) addWorker();
   carriers=[]; for(let i=0;i<st.lv.carrier;i++) addCarrier();
 }
@@ -347,12 +348,15 @@ function update(dt){
   for(const p of PADS){
     const lv=st.lv[p.id]; if(lv>=p.costs.length || st.earned<p.show) continue;
     const cost=p.costs[lv];
-    if(dist(player.x,player.y,p.x,p.y)<30 && !player.moving && st.money+st.carry>0){
+    const onPad=dist(player.x,player.y,p.x,p.y)<30 && !player.moving;
+    if(dist(player.x,player.y,p.x,p.y)>=30) p.lock=false;
+    p.dwell=(onPad&&!p.lock)?Math.min(PAD_WAIT,(p.dwell||0)+dt):0;
+    if(onPad && p.dwell>=PAD_WAIT && st.money+st.carry>0){
       const pay=Math.min(st.money+st.carry, cost-(padProg[p.id]||0), Math.max(cost*dt*.6, 20*dt));
       const fromCarry=Math.min(st.carry,pay); st.carry-=fromCarry; st.money-=pay-fromCarry; if(st.money<1e-6) st.money=Math.max(0,st.money);
       padProg[p.id]=(padProg[p.id]||0)+pay;
       p.payT=(p.payT||0)-dt; if(p.payT<=0){ p.payT=.1; fly('cash',player.x,player.y,colH(player),p.x,p.y,0,.3,16,null); }
-      if(padProg[p.id]>=cost-.01){ padProg[p.id]=0; buy(p); }
+      if(padProg[p.id]>=cost-.01){ padProg[p.id]=0; p.lock=true; p.dwell=0; buy(p); }
     }
   }
   // taşıyıcılar
@@ -645,9 +649,13 @@ function drawPad(p){
   else if(p.id==='carrier'){ rr(ix-9,iy-6,16,10,2); ctx.fill(); ctx.fillRect(ix+7,iy-10,2,10); ell(ix-5,iy+7,3,3); ctx.fill(); ell(ix+4,iy+7,3,3); ctx.fill(); }
   else if(p.id==='price'){ ctx.font='900 20px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('$',ix-3,iy+1); ctx.beginPath(); ctx.moveTo(ix+6,iy-1); ctx.lineTo(ix+10,iy-7); ctx.lineTo(ix+14,iy-1); ctx.fill(); }
   ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.font='900 15px system-ui,sans-serif'; ctx.fillText('$ '+fmt(cost),0,10);
+  const paid=padProg[p.id]||0, left=Math.ceil(cost-paid);
+  if(paid>0){ ctx.font='900 13px system-ui,sans-serif'; ctx.fillStyle='#ffe27a'; ctx.fillText('$'+fmt(left)+' kaldı',0,10); ctx.fillStyle='#fff'; }
+  else { ctx.font='900 15px system-ui,sans-serif'; ctx.fillText('$ '+fmt(cost),0,10); }
   ctx.font='700 9px system-ui,sans-serif'; ctx.fillStyle='rgba(255,255,255,.8)';
-  ctx.fillText(p.label+(p.costs.length>1?'  '+(lv+1)+'/'+p.costs.length:''),0,21);
+  ctx.fillText(paid>0 ? ('$'+fmt(cost)+' / '+fmt(paid)+' ödendi') : (p.label+(p.costs.length>1?'  '+(lv+1)+'/'+p.costs.length:'')),0,21);
+  // bekleme halkası
+  if(p.dwell>0 && p.dwell<PAD_WAIT){ ctx.strokeStyle='#ffcf33'; ctx.lineWidth=4; ctx.lineCap='round'; ctx.beginPath(); ctx.arc(0,0,44,-Math.PI/2,-Math.PI/2+Math.PI*2*p.dwell/PAD_WAIT); ctx.stroke(); ctx.lineCap='butt'; }
 }
 
 // Dekor
