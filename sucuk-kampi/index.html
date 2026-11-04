@@ -38,7 +38,7 @@
 <div class="hud">
   <div class="money" id="moneyBox">
     <svg viewBox="0 0 34 28"><rect x="3" y="8" width="28" height="17" rx="2" fill="#2f9a3e" transform="rotate(-12 17 16)"/><rect x="2" y="6" width="28" height="17" rx="2" fill="#4cc75b" stroke="#2a8a37" stroke-width="1.5" transform="rotate(-12 16 14)"/><circle cx="16" cy="14" r="4.5" fill="#bff0c4" transform="rotate(-12 16 14)"/></svg>
-    <span id="money">0</span>
+    <div style="display:flex;flex-direction:column;line-height:1"><span id="money">0</span><small id="moneySub" style="font-size:11px;font-weight:700;opacity:.85;margin-top:3px;white-space:nowrap">Sırtta 0 · Kasada 0</small></div>
   </div>
   <div class="sp"></div>
   <button class="ib" id="muteBtn" aria-label="Ses">🔊</button>
@@ -54,10 +54,10 @@
       <li>Ekranda parmağını sürükle, karakter yürüsün.</li>
       <li><b>Zıpkın noktasında</b> dur: nehirdeki dev sucuğu çekersin.</li>
       <li>Makine dilimler. Dilimleri topla, <b>tezgâha</b> bırak.</li>
-      <li>Müşteriler öder. Parayı topla, <b>işçi</b> ve <b>geliştirme</b> al.</li>
+      <li>Müşteriler öder. Para sırtında birikir; istersen <b>kasaya</b> bırak.</li><li>Parayla <b>işçi</b> ve <b>geliştirme</b> al.</li>
     </ul>
     <button class="btn" id="playBtn">Oyna</button>
-    <div class="ver">v2.0</div>
+    <div class="ver">v2.1</div>
   </div>
 </div>
 
@@ -83,7 +83,8 @@ const PILE={x:298,y:228,w:66,h:56};
 const DROP={x:268,y:508,w:86,h:40};
 const COUNTER={x1:222,x2:316,y:548};
 const CASH={x:158,y:514,w:54,h:44};
-const QUEUE_Y=600, QUEUE_X0=268, QUEUE_DX=32, QUEUE_MAX=6;
+const SAFE={x:62,y:516,w:54,h:40};
+const QUEUE_Y=600, QUEUE_X0=268, QUEUE_DX=32, QUEUE_MAX=8;
 const SAUS_LEN=100, SAUS_R=19, SLICE_T=5;
 const RIVER={y1:28,y2:136}, RIVER_Y=82;
 
@@ -96,7 +97,7 @@ const PADS=[
 ];
 const SPEEDS=[92,106,120,136];
 const RATES=[2,2.8,3.8,5];
-const PRICES=[2,3,4,5];
+const PRICES=[3,4,5,7];
 const WORKER_SPOTS=[{x:40,y:186},{x:98,y:186},{x:132,y:176}];
 
 // ====== İzometrik kamera ======
@@ -155,8 +156,8 @@ const sfx={
 // ====== Kayıt ======
 const SAVE_KEY='sucukKampi_v2';
 let st;
-function fresh(){ return {money:0, earned:0, lv:{worker:0,speed:0,blade:0,carrier:0,price:0}, tut:0}; }
-function load(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&s.lv){ const f=fresh(); Object.assign(f,s); f.lv=Object.assign(fresh().lv,s.lv); return f; } }catch(e){} return fresh(); }
+function fresh(){ return {money:0, carry:0, earned:0, lv:{worker:0,speed:0,blade:0,carrier:0,price:0}, tut:0}; }
+function load(){ try{ const s=JSON.parse(localStorage.getItem(SAVE_KEY)); if(s&&s.lv){ const f=fresh(); Object.assign(f,s); f.carry=f.carry||0; f.lv=Object.assign(fresh().lv,s.lv); return f; } }catch(e){} return fresh(); }
 function save(){ try{ localStorage.setItem(SAVE_KEY,JSON.stringify(st)); }catch(e){} }
 st=load();
 
@@ -165,12 +166,12 @@ let player, river, belt, incoming, pileCount, counterStock, cashAmt, customers, 
 let sid=0;
 function newRiverSausage(x){ return {id:sid++, x, y:RIVER_Y+(Math.random()*20-10), h:3, len:112, r:22, bob:Math.random()*6, targeted:false, seed:Math.random()*1000}; }
 function initWorld(){
-  player={x:120,y:300,dir:1,phase:0,stack:0,cool:0,moving:false,pickT:0,pend:0};
+  player={x:120,y:300,dir:1,phase:0,stack:0,cool:0,moving:false,pickT:0,pend:0,carry:st.carry};
   cam.x=player.x; cam.y=player.y;
   river=[]; for(let i=0;i<3;i++) river.push(newRiverSausage(-40+i*170));
   belt=[]; incoming=[]; pileCount=0; counterStock=0; cashAmt=0; pendCounter=0;
   customers=[]; flyers=[]; texts=[]; harpoons=[]; confetti=[];
-  spawnT=0; custT=2; padProg={};
+  spawnT=0; custT=.5; padProg={};
   workers=[]; for(let i=0;i<st.lv.worker;i++) addWorker();
   carriers=[]; for(let i=0;i<st.lv.carrier;i++) addCarrier();
 }
@@ -202,9 +203,12 @@ const inRect=(x,y,r,pad=0)=>Math.abs(x-r.x)<r.w/2+pad && Math.abs(y-r.y)<r.h/2+p
 function fmt(n){ n=Math.floor(n); if(n>=1e6) return (n/1e6).toFixed(1).replace('.0','')+'M'; if(n>=1e4) return (n/1e3).toFixed(1).replace('.0','')+'K'; return ''+n; }
 const moneyEl=document.getElementById('money'), moneyBox=document.getElementById('moneyBox');
 let shownMoney=-1;
-function updMoney(){ const m=Math.floor(st.money); if(m!==shownMoney){ moneyEl.textContent=fmt(m); if(m>shownMoney&&shownMoney>=0){ moneyBox.classList.add('bump'); clearTimeout(updMoney.t); updMoney.t=setTimeout(()=>moneyBox.classList.remove('bump'),110);} shownMoney=m; } }
+const subEl=document.getElementById('moneySub'); let shownSub='';
+function updMoney(){ const sub='Sırtta '+fmt(st.carry)+' · Kasada '+fmt(st.money); if(sub!==shownSub){ shownSub=sub; subEl.textContent=sub; } const m=Math.floor(st.money+st.carry); if(m!==shownMoney){ moneyEl.textContent=fmt(m); if(m>shownMoney&&shownMoney>=0){ moneyBox.classList.add('bump'); clearTimeout(updMoney.t); updMoney.t=setTimeout(()=>moneyBox.classList.remove('bump'),110);} shownMoney=m; } }
 function fly(type,x1,y1,h1,x2,y2,h2,dur,arc,done){ const f={type,x1,y1,h1,x2,y2,h2,t:0,dur,arc,done}; flyers.push(f); return f; }
 function floatText(x,y,txt,col){ texts.push({x,y,txt,col:col||'#2a9a3a',t:0}); }
+function billN(c){ return Math.min(Math.ceil(c/4),60); }
+function colH(o){ return 44+Math.min(o.stack,70)*2.5+billN(o.carry||0)*1.9; }
 function stackH(n){ return 44+Math.min(n,70)*2.5; }
 
 // ====== Güncelleme ======
@@ -322,24 +326,32 @@ function update(dt){
   if(inRect(player.x,player.y,DROP,6) && player.stack>0 && player.pickT<=0 && counterStock+pendCounter<120){
     player.stack--; player.pickT=.07; pendCounter++;
     const pos=counterSlot(counterStock+pendCounter-1);
-    fly('slice',player.x,player.y,stackH(player.stack),pos.x,pos.y,pos.h,.25,20,()=>{pendCounter--; counterStock++; sfx.pop();});
+    fly('slice',player.x,player.y,colH(player),pos.x,pos.y,pos.h,.25,20,()=>{pendCounter--; counterStock++; sfx.pop();});
     if(st.tut===2) st.tut=3;
   }
   // para topla
   if(inRect(player.x,player.y,CASH,6) && cashAmt>0){
     const t=Math.min(cashAmt,Math.max(1,Math.ceil(cashAmt*Math.min(1,dt*5))));
-    cashAmt-=t; st.money+=t;
-    collectT-=dt; if(collectT<=0){ collectT=.07; fly('cash',CASH.x+rnd(-14,14),CASH.y+rnd(-10,6),4,-1,-1,0,.5,30,null); sfx.cash(); }
+    cashAmt-=t; player.pendCash=(player.pendCash||0)+t;
+    collectT-=dt; if(collectT<=0){ collectT=.07; const amt=player.pendCash; player.pendCash=0; fly('cash',CASH.x+rnd(-14,14),CASH.y+rnd(-10,6),4,0,0,0,.3,26,()=>{st.carry+=amt; player.carry=st.carry; sfx.cash();}).target=player; }
     if(st.tut===3) st.tut=4;
   }
+  // kasaya bırak
+  if(inRect(player.x,player.y,SAFE,6) && st.carry>0){
+    const t=Math.min(st.carry,Math.max(1,Math.ceil(st.carry*Math.min(1,dt*3))));
+    st.carry-=t; st.money+=t;
+    player.depT=(player.depT||0)-dt; if(player.depT<=0){ player.depT=.07; fly('cash',player.x,player.y,colH(player),SAFE.x,SAFE.y-24,14,.3,20,null); sfx.cash(); }
+  }
+  player.carry=st.carry;
   // satın alma
   for(const p of PADS){
     const lv=st.lv[p.id]; if(lv>=p.costs.length || st.earned<p.show) continue;
     const cost=p.costs[lv];
-    if(dist(player.x,player.y,p.x,p.y)<30 && !player.moving && st.money>0){
-      const pay=Math.min(st.money, cost-(padProg[p.id]||0), Math.max(cost*dt*.6, 20*dt));
-      st.money-=pay; padProg[p.id]=(padProg[p.id]||0)+pay;
-      p.payT=(p.payT||0)-dt; if(p.payT<=0){ p.payT=.1; fly('cash',player.x,player.y,40,p.x,p.y,0,.3,16,null); }
+    if(dist(player.x,player.y,p.x,p.y)<30 && !player.moving && st.money+st.carry>0){
+      const pay=Math.min(st.money+st.carry, cost-(padProg[p.id]||0), Math.max(cost*dt*.6, 20*dt));
+      const fromCarry=Math.min(st.carry,pay); st.carry-=fromCarry; st.money-=pay-fromCarry; if(st.money<1e-6) st.money=Math.max(0,st.money);
+      padProg[p.id]=(padProg[p.id]||0)+pay;
+      p.payT=(p.payT||0)-dt; if(p.payT<=0){ p.payT=.1; fly('cash',player.x,player.y,colH(player),p.x,p.y,0,.3,16,null); }
       if(padProg[p.id]>=cost-.01){ padProg[p.id]=0; buy(p); }
     }
   }
@@ -363,9 +375,9 @@ function update(dt){
   // müşteriler
   custT-=dt;
   if(custT<=0 && customers.filter(c=>c.state!=='leave').length<QUEUE_MAX){
-    custT=rnd(4,6.5);
+    custT=rnd(1.4,2.4);
     const pal=[['#f39a2a','#ffd166'],['#e8613a','#ffd9c0'],['#3fae6a','#d8f5e2'],['#8a5bd6','#e8dcff'],['#d9b23a','#fff3c4'],['#e05a8a','#ffd6e6']][Math.floor(Math.random()*6)];
-    customers.push({x:-60,y:QUEUE_Y,want:1+Math.floor(Math.random()*Math.min(4,1+st.earned/250)),got:0,state:'walk',dir:1,phase:0,coat:pal[0],trim:pal[1],takeT:0,slot:99,moving:true});
+    customers.push({x:-60,y:QUEUE_Y,want:1+Math.floor(Math.random()*Math.min(5,2+st.earned/200)),got:0,state:'walk',dir:1,phase:0,coat:pal[0],trim:pal[1],takeT:0,slot:99,moving:true});
   }
   customers.filter(c=>c.state!=='leave').forEach((c,i)=>c.slot=i);
   for(const c of customers){
@@ -376,7 +388,7 @@ function update(dt){
       if(c.slot===0){
         c.takeT-=dt;
         if(counterStock>0 && c.got<c.want && c.takeT<=0){
-          counterStock--; c.got++; c.takeT=.3;
+          counterStock--; c.got++; c.takeT=.18;
           const p=counterSlot(counterStock);
           fly('slice',p.x,p.y,p.h,c.x,c.y,40,.25,14,null); sfx.pop();
         }
@@ -421,7 +433,7 @@ function updHint(){
   else if(st.tut===1){ t=PILE; txt='Dilimleri topla'; }
   else if(st.tut===2){ if(player.stack>0){ t=DROP; txt='Tezgâha bırak'; } else { t=PILE; txt='Dilimleri topla'; } }
   else if(st.tut===3){ if(cashAmt>0){ t=CASH; txt='Parayı topla'; } else txt='Müşteriler alıyor…'; }
-  else if(st.tut===4){ const p=PADS[0]; if(st.earned>=p.show){ t=p; txt=st.money>=p.costs[0]?'İşçi al: üstünde dur':'Para biriktir, işçi al ($'+p.costs[0]+')'; } }
+  else if(st.tut===4){ const p=PADS[0]; if(st.earned>=p.show){ t=p; txt=st.money+st.carry>=p.costs[0]?'İşçi al: üstünde dur':'Para biriktir, işçi al ($'+p.costs[0]+')'; } }
   hintTarget=t;
   if(txt!==hintTxt){ hintTxt=txt; hintEl.textContent=txt; hintEl.classList.toggle('on',!!txt); }
 }
@@ -534,7 +546,9 @@ function drawPerson(o){
   boot(-6.5+sw*.7); boot(1-sw*.7);
   const by=-bob;
   // sırttaki yığın
-  if(o.stack){ const n=Math.min(o.stack,70); for(let i=0;i<n;i++) drawSlice(-d*2,by-36-i*2.5,1); }
+  const nS=o.stack?Math.min(o.stack,70):0;
+  for(let i=0;i<nS;i++) drawSlice(-d*2,by-36-i*2.5,1);
+  if(o.bills){ for(let i=0;i<o.bills;i++) drawBill(-d*2,by-35-nS*2.5-i*1.9,0); }
   // gövde
   const cg=ctx.createLinearGradient(-10,0,10,0); cg.addColorStop(0,shade(o.coat,.25)); cg.addColorStop(.55,o.coat); cg.addColorStop(1,shade(o.coat,-.3));
   ctx.fillStyle=cg; ctx.beginPath(); ctx.moveTo(-9,by-7); ctx.quadraticCurveTo(-11,by-24,-6,by-27); ctx.lineTo(6,by-27); ctx.quadraticCurveTo(11,by-24,9,by-7); ctx.closePath(); ctx.fill();
@@ -544,7 +558,7 @@ function drawPerson(o){
   ctx.fillStyle='rgba(0,0,0,.08)'; for(let i=-4;i<=4;i++){ ell(i*2.2+.6,by-6.8,1.4,1.2); ctx.fill(); }
   // kollar
   const arm=(ax,up)=>{ const g=ctx.createLinearGradient(ax-4,0,ax+4,0); g.addColorStop(0,shade(o.coat,.15)); g.addColorStop(1,shade(o.coat,-.25)); ctx.fillStyle=g; ell(ax,by-18-up,3.8,6.5,ax<0?.25:-.25); ctx.fill(); ctx.fillStyle=o.trim; ell(ax*1.05,by-12.5-up,3,2); ctx.fill(); ctx.fillStyle=shade(o.coat,-.45); ell(ax*1.08,by-11-up,2.6,2.4); ctx.fill(); };
-  const up=o.stack?7:0, thr=o.throw?6:0;
+  const up=(o.stack||o.bills)?7:0, thr=o.throw?6:0;
   arm(-10+sw*.2,up); arm(10-sw*.2,up+thr);
   // kapüşon kürkü
   ctx.fillStyle=o.trim;
@@ -697,6 +711,9 @@ function render(){
   // pedler
   const pad=(r)=>{ ctx.fillStyle='rgba(30,25,30,.2)'; rr(r.x-r.w/2+2,r.y-r.h/2+3,r.w,r.h,9); ctx.fill(); ctx.fillStyle='#4f4346'; rr(r.x-r.w/2,r.y-r.h/2,r.w,r.h,9); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.08)'; ctx.lineWidth=2; rr(r.x-r.w/2+3,r.y-r.h/2+3,r.w-6,r.h-6,7); ctx.stroke(); };
   pad(PILE); pad(CASH);
+  ctx.fillStyle='rgba(47,111,224,.22)'; rr(SAFE.x-SAFE.w/2,SAFE.y-SAFE.h/2,SAFE.w,SAFE.h,8); ctx.fill();
+  ctx.setLineDash([7,5]); ctx.strokeStyle='#2f6fe0'; ctx.lineWidth=2.6; rr(SAFE.x-SAFE.w/2,SAFE.y-SAFE.h/2,SAFE.w,SAFE.h,8); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle='#2f6fe0'; ctx.font='900 10px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('KASA',SAFE.x,SAFE.y+10);
   ctx.setLineDash([9,7]); ctx.strokeStyle='#fff'; ctx.lineWidth=3.2; rr(DROP.x-DROP.w/2,DROP.y-DROP.h/2,DROP.w,DROP.h,7); ctx.stroke(); ctx.setLineDash([]);
   for(const p of PADS){ if(st.lv[p.id]<p.costs.length && st.earned>=p.show) drawPad(p); }
   // iskele
@@ -762,8 +779,18 @@ function render(){
     box(COUNTER.x2-20,COUNTER.y-10,COUNTER.x2-6,COUNTER.y,17,26,'#c7d2e8','#5f6f8f','#7686a6');
     for(let i=0;i<counterStock;i++){ const p=counterSlot(i); at(p.x,p.y,p.h); drawSlice(0,0,1); }
   });
+  // kasa
+  add(SAFE.x,SAFE.y-14,0,()=>{
+    box(SAFE.x-15,SAFE.y-34,SAFE.x+15,SAFE.y-16,0,30,'#9aa8c2','#5c6a86','#76849f','#4c5872');
+    const c=P(SAFE.x,SAFE.y-16,15); screen(); ctx.save(); ctx.translate(c.x,c.y); ctx.scale(Z,Z);
+    ctx.fillStyle='#d8e0ee'; ell(0,0,6,5); ctx.fill(); ctx.strokeStyle='#4c5872'; ctx.lineWidth=1.2; ell(0,0,6,5); ctx.stroke();
+    ctx.save(); ctx.rotate(time*.5); ctx.fillStyle='#4c5872'; ctx.fillRect(-.7,-4.5,1.4,4.5); ctx.restore();
+    ctx.fillStyle='#e8c040'; ctx.fillRect(9,-3,2.5,7); ctx.restore();
+    const n=Math.min(Math.ceil(st.money/20),24);
+    for(let i=0;i<n;i++){ at(SAFE.x-8+(i%2)*14,SAFE.y-25,31+Math.floor(i/2)*1.9); drawBill(0,0,XANG); }
+  });
   // karakterler
-  add(player.x,player.y,0,()=>{ at(player.x,player.y,0); drawPerson({dir:player.dir,phase:player.phase,moving:player.moving,coat:'#2f7fe0',trim:'#ffffff',stack:player.stack,beard:'#f4f4f4'}); });
+  add(player.x,player.y,0,()=>{ at(player.x,player.y,0); drawPerson({dir:player.dir,phase:player.phase,moving:player.moving,coat:'#2f7fe0',trim:'#ffffff',stack:player.stack,bills:billN(st.carry),beard:'#f4f4f4'}); });
   for(const w of workers) add(w.x,w.y,0,()=>{ at(w.x,w.y,0); drawPerson({dir:1,phase:0,moving:false,coat:'#3a8ee8',trim:'#ffe7a3',hat:'#f0a020',throw:w.throwT>0}); });
   for(const c of carriers) add(c.x,c.y,0,()=>{ at(c.x,c.y,0); drawPerson({dir:c.dir,phase:c.phase,moving:c.moving,coat:'#2fa06a',trim:'#e6fbef',stack:c.stack,hat:'#e0533d'}); });
   for(const c of customers) add(c.x,c.y,0,()=>{ at(c.x,c.y,0); drawPerson({dir:c.dir,phase:c.phase,moving:c.moving,coat:c.coat,trim:c.trim,stack:Math.min(c.got,12)}); });
@@ -784,7 +811,7 @@ function render(){
   const hud=document.querySelector('.money').getBoundingClientRect();
   for(const f of flyers){
     const k=f.t/f.dur; let x2=f.x2,y2=f.y2,h2=f.h2;
-    if(f.target){ x2=f.target.x; y2=f.target.y; h2=stackH(f.target.stack); }
+    if(f.target){ x2=f.target.x; y2=f.target.y; h2=colH(f.target); }
     if(x2===-1){ const u=unproj(hud.left+22,hud.top+hud.height/2); x2=u.x; y2=u.y; h2=0; }
     const x=f.x1+(x2-f.x1)*k, y=f.y1+(y2-f.y1)*k, h=f.h1+(h2-f.h1)*k+Math.sin(k*Math.PI)*f.arc;
     at(x,y,h); if(f.type==='slice') drawSlice(0,0,1); else drawBill(0,0,k*5);
@@ -798,8 +825,10 @@ function render(){
     ctx.fillStyle='#1d2a3a'; ctx.font='900 12px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('x'+(c.want-c.got),0,by+9);
   }
   // çok yüksek yığın etiketi
-  if(player.stack>0){ at(player.x,player.y,0); const y=-(stackH(player.stack)+16)*1.15;
-    ctx.font='900 13px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineWidth=4; ctx.strokeStyle='#fff'; ctx.strokeText(player.stack,0,y); ctx.fillStyle='#b8392a'; ctx.fillText(player.stack,0,y); }
+  if(player.stack>0||st.carry>0){ at(player.x,player.y,0); let y=-(colH(player)+14)*1.15;
+    ctx.font='900 13px system-ui,sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.lineWidth=4; ctx.strokeStyle='#fff';
+    if(st.carry>0){ const t='$'+fmt(st.carry); ctx.strokeText(t,0,y); ctx.fillStyle='#1f8a2e'; ctx.fillText(t,0,y); y-=15; }
+    if(player.stack>0){ ctx.strokeText(player.stack,0,y); ctx.fillStyle='#b8392a'; ctx.fillText(player.stack,0,y); } }
   // konfeti
   for(const c of confetti){ at(c.x,c.y,c.h); ctx.fillStyle=c.c; ctx.rotate(c.t*8); ctx.fillRect(-2,-1.5,4,3); }
   // yazılar
