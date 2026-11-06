@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#070b20">
+<meta name="description" content="Neon Kaçış: Tek dokunuşla şerit değiştir, engellerden sıyrıl ve kendi rekorunu kır. Ücretsiz tarayıcı oyunu.">
+<title>Neon Kaçış — Tek Dokunuşluk Refleks Oyunu</title>
+<style>
+:root{color-scheme:dark;--sky:#69f7ff;--pink:#ff477f;--gold:#ffd76a}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070b20;color:#f7f9ff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none}
+canvas{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:none}
+#hud{position:fixed;z-index:2;inset:0;pointer-events:none;display:none}
+#scoreBox{position:absolute;top:calc(16px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);text-align:center}
+#score{font-size:clamp(44px,10vw,68px);line-height:.95;font-weight:950;letter-spacing:-3px;text-shadow:0 0 24px #69f7ff44;font-variant-numeric:tabular-nums}
+#scoreLabel{font-size:10px;letter-spacing:5px;color:#9bb3df;font-weight:900;margin-top:5px}
+#best{position:absolute;top:calc(24px + env(safe-area-inset-top));left:18px;color:#c2cce6;font-weight:850;font-size:12px;line-height:1.5}
+#best strong{font-size:18px;color:#ffd76a}
+#combo{position:absolute;top:calc(90px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);font-size:15px;color:#ffd76a;font-weight:950;letter-spacing:2px;white-space:nowrap;text-shadow:0 0 15px #ffbc3d88}
+#energy{position:absolute;bottom:calc(21px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);min-width:160px;text-align:center;font-size:12px;font-weight:850;letter-spacing:1px;color:#b6c3df}
+#pause,#sound{pointer-events:auto;position:absolute;top:calc(19px + env(safe-area-inset-top));height:43px;width:43px;display:grid;place-items:center;border-radius:13px;background:#121a37cc;border:1px solid #3a4a75;color:#eef3ff;font-size:21px;cursor:pointer;touch-action:manipulation}
+#pause{right:70px}#sound{right:18px}
+#screen{position:fixed;z-index:5;inset:0;display:flex;align-items:center;justify-content:center;padding:calc(25px + env(safe-area-inset-top)) 18px calc(25px + env(safe-area-inset-bottom));background:linear-gradient(180deg,#070b2094,#070b20dd);transition:opacity .22s}
+#screen.hidden{opacity:0;pointer-events:none}
+.panel{width:min(410px,100%);padding:30px 24px 26px;text-align:center;background:linear-gradient(145deg,#121c3aee,#090e25f5);border:1px solid #5a79ac55;border-radius:28px;box-shadow:0 28px 90px #000a,0 0 55px #3c6bd522;backdrop-filter:blur(14px)}
+.kicker{font-size:11px;color:#91badc;letter-spacing:5px;font-weight:950;margin-bottom:12px}
+.logo{font-size:clamp(48px,13vw,70px);font-weight:1000;line-height:.92;letter-spacing:-4px;background:linear-gradient(110deg,#68f3ff 10%,#e9fcff 43%,#ff65ac 95%);color:transparent;background-clip:text;-webkit-background-clip:text;text-shadow:none;filter:drop-shadow(0 5px 20px #5edaff33)}
+.logo span{display:block}
+.orb{font-size:52px;margin:6px 0 16px;filter:drop-shadow(0 0 20px #69f7ffaa);animation:bob 2.3s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-8px)}}
+#desc{color:#acbad4;font-size:15px;line-height:1.6;margin:18px auto 21px;max-width:315px}
+#stats{display:flex;justify-content:center;gap:12px;margin:0 auto 22px}
+.stat{min-width:105px;padding:11px 14px;border:1px solid #40517a;background:#101a33;border-radius:13px}
+.stat small{display:block;font-size:10px;letter-spacing:2px;color:#91a4c7;font-weight:800}
+.stat b{display:block;color:#fff;font-size:27px}
+#primary{display:block;width:100%;border:0;border-radius:17px;padding:17px 20px;background:linear-gradient(100deg,#73faff,#7ea7ff 60%,#bd76ff);color:#071229;box-shadow:0 8px 28px #45bfe950;font-size:18px;letter-spacing:1px;font-weight:1000;cursor:pointer;touch-action:manipulation;transition:transform .13s}
+#primary:active{transform:scale(.97)}
+.hint{font-size:12px;color:#7892b9;font-weight:750;margin:17px 0 0}
+#toast{position:absolute;top:36%;left:50%;transform:translate(-50%,-50%);z-index:3;color:#fff;font-size:clamp(25px,8vw,38px);font-weight:1000;letter-spacing:1px;text-shadow:0 0 26px #4fffffc7;pointer-events:none;opacity:0;transition:opacity .15s;white-space:nowrap}
+#toast.show{opacity:1}
+#footer{position:fixed;left:50%;bottom:calc(7px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:10px;color:#547199b8;z-index:1;pointer-events:none;white-space:nowrap}
+@media(max-height:620px){.panel{padding:17px 20px}.orb{font-size:34px;margin:1px 0 4px}.logo{font-size:44px}#desc{margin:9px auto 12px}.hint{margin-top:9px}#stats{margin-bottom:12px}}
+@media(prefers-reduced-motion:reduce){.orb{animation:none}*{scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Neon Kaçış oyun alanı"></canvas>
+<div id="hud">
+  <div id="best">REKOR<br><strong id="bestNum">0</strong></div>
+  <div id="scoreBox"><div id="score">0</div><div id="scoreLabel">PUAN</div></div>
+  <div id="combo"></div>
+  <div id="energy">✦ 0 KRİSTAL &nbsp;·&nbsp; ◈ KALKAN YOK</div>
+  <button id="pause" aria-label="Duraklat">Ⅱ</button>
+  <button id="sound" aria-label="Sesi aç veya kapat">♫</button>
+</div>
+<div id="toast"></div>
+<div id="screen">
+  <div class="panel">
+    <div class="kicker" id="kicker">TEK DOKUNUŞ · SONSUZ KOŞU</div>
+    <div class="orb" id="orb">⚡</div>
+    <div class="logo" id="title"><span>NEON</span><span>KAÇIŞ</span></div>
+    <p id="desc">Işık şeritlerinde hızla ilerle. <b style="color:#69f7ff">Dokunarak taraf değiştir</b>, kırmızı engellerden kaç ve kristalleri topla!</p>
+    <div id="stats"><div class="stat"><small>EN İYİ</small><b id="menuBest">0</b></div><div class="stat"><small>TOPLAM KOŞU</small><b id="runs">0</b></div></div>
+    <button id="primary">▶ HEMEN OYNA</button>
+    <p class="hint" id="hint">📱 Dokun &nbsp;·&nbsp; 💻 Tıkla / Boşluk tuşu</p>
+  </div>
+</div>
+<div id="footer">NEON KAÇIŞ · YEREL REKOR KAYDI</div>
+<script>
+(()=>{
+"use strict";
+const canvas=document.getElementById("game"),cx=canvas.getContext("2d",{alpha:false});
+const $=s=>document.getElementById(s);
+const hud=$("hud"),screen=$("screen"),primary=$("primary"),toast=$("toast");
+const storeKey="neon-kacis-v1";
+let saved={best:0,runs:0,crystals:0,sound:true};
+try{const x=JSON.parse(localStorage.getItem(storeKey)||"{}");saved=Object.assign(saved,x)}catch(_){}
+function save(){try{localStorage.setItem(storeKey,JSON.stringify(saved))}catch(_){}}
+let W=0,H=0,DPR=1,lanes=[0,0],py=0;
+let phase="menu",player={x:0,lane:0,shield:0,invuln:0};
+let rows=[],dust=[],stars=[],messages=[];
+let score=0,streak=0,gems=0,t=0,spawnIn=0,rowCount=0,speed=270,shake=0,flash=0;
+let lastFrame=performance.now(),nextId=0,toastTimeout=0,audio=null;
+const rnd=(a,b)=>a+Math.random()*(b-a),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const colors=[["#69f7ff","#ff537f"],["#95ff9b","#ff739f"],["#ffd67b","#ac84ff"],["#69e4ff","#ff884a"]];
+function resize(){
+ W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio||1,2);
+ canvas.width=Math.round(W*DPR);canvas.height=Math.round(H*DPR);
+ canvas.style.width=W+"px";canvas.style.height=H+"px";cx.setTransform(DPR,0,0,DPR,0,0);
+ lanes=[W*.29,W*.71];py=H*.73;
+ player.x=lanes[player.lane]||lanes[0];
+ stars=Array.from({length:Math.min(100,Math.round(W*H/4500))},()=>({x:Math.random()*W,y:Math.random()*H,r:rnd(.5,1.9),v:rnd(6,26),a:rnd(.12,.65)}));
+}
+addEventListener("resize",resize);resize();
+function sfx(kind){
+ if(!saved.sound)return;
+ try{
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(!AC)return;
+  if(!audio)audio=new AC();
+  if(audio.state==="suspended")audio.resume();
+  const now=audio.currentTime,o=audio.createOscillator(),g=audio.createGain();
+  o.type=kind==="hit"?"sawtooth":kind==="gem"?"sine":"triangle";
+  let f=kind==="flip"?400:kind==="gem"?740:kind==="hit"?180:kind==="shield"?280:560;
+  o.frequency.setValueAtTime(f,now);
+  o.frequency.exponentialRampToValueAtTime(kind==="hit"?65:f*(kind==="flip"?1.5:kind==="gem"?1.9:1.17),now+.12);
+  g.gain.setValueAtTime(.0001,now);
+  g.gain.exponentialRampToValueAtTime(kind==="hit"?.09:.048,now+.014);
+  g.gain.exponentialRampToValueAtTime(.0001,now+.16);
+  o.connect(g);g.connect(audio.destination);o.start(now);o.stop(now+.18);
+ }catch(_){}
+}
+function rr(x,y,w,h,r){
+ const q=Math.min(r,w/2,h/2);cx.beginPath();cx.moveTo(x+q,y);cx.arcTo(x+w,y,x+w,y+h,q);cx.arcTo(x+w,y+h,x,y+h,q);cx.arcTo(x,y+h,x,y,q);cx.arcTo(x,y,x+w,y,q);cx.closePath();
+}
+function burst(x,y,color,n=16,power=1){
+ for(let i=0;i<n;i++){const a=rnd(0,Math.PI*2),s=rnd(55,250)*power;
+  dust.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:rnd(.24,.7),max:.7,color,r:rnd(1.5,4.5)});}
+ if(dust.length>210)dust.splice(0,dust.length-210);
+}
+function notify(msg,color="#fff"){
+ toast.textContent=msg;toast.style.color=color;toast.classList.add("show");
+ clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>toast.classList.remove("show"),620);
+}
+function updateHud(){
+ $("score").textContent=score;$("bestNum").textContent=Math.max(saved.best,score);
+ $("combo").textContent=streak>=2?"🔥 "+Math.min(streak,9)+"x SERİ":""; 
+ $("energy").textContent="✦ "+gems+" KRİSTAL   ·   "+(player.shield?"◈ KALKAN HAZIR":"◇ "+(5-gems%5)+" KRİSTAL KALDI");
+ $("sound").textContent=saved.sound?"♫":"♪̸";
+}
+function begin(){
+ phase="playing";screen.classList.add("hidden");hud.style.display="block";
+ saved.runs++;save();player={x:lanes[0],lane:0,shield:0,invuln:0};
+ score=0;streak=0;gems=0;t=0;speed=270;spawnIn=1.4;rowCount=0;shake=0;flash=0;rows=[];dust=[];messages=[];updateHud();$("pause").textContent="Ⅱ";lastFrame=performance.now();
+ notify("ŞERİT DEĞİŞTİR!", "#69f7ff");sfx("start");
+}
+function end(){
+ phase="over";shake=20;flash=.65;sfx("hit");burst(player.x,py,"#ff537f",38,1.4);
+ if(navigator.vibrate)navigator.vibrate([70,40,90]);
+ const record=score>saved.best;
+ saved.best=Math.max(saved.best,score);saved.crystals+=gems;save();
+ $("kicker").textContent=record?"🏆 YENİ REKOR!":"OYUN BİTTİ · BİR DAHA?";
+ $("orb").textContent=record?"🏆":"💥";
+ $("title").innerHTML="<span>OYUN</span><span>BİTTİ</span>";
+ $("desc").innerHTML=record?"Muhteşem! Yeni rekorun <b>"+score+"</b>. Bir kez daha geçebilir misin?":"Bu sefer <b>"+score+"</b> puan yaptın. Ritmi yakala, rekoru kır!";
+ $("stats").innerHTML='<div class="stat"><small>PUAN</small><b>'+score+'</b></div><div class="stat"><small>REKOR</small><b>'+saved.best+'</b></div>';
+ primary.textContent="↻ TEKRAR OYNA";$("hint").textContent="Tek dokunuş. Bir hak daha.";screen.classList.remove("hidden");
+}
+function pauseGame(){
+ if(phase==="playing"){
+  phase="paused";$("kicker").textContent="KÜÇÜK BİR MOLA";$("orb").textContent="⏸";
+  $("title").innerHTML="<span>OYUN</span><span>DURDU</span>";
+  $("desc").textContent="Hazır olduğunda kaldığın yerden devam et.";
+  $("stats").innerHTML='<div class="stat"><small>PUAN</small><b>'+score+'</b></div><div class="stat"><small>REKOR</small><b>'+saved.best+'</b></div>';
+  primary.textContent="▶ DEVAM ET";$("hint").textContent="P veya Esc ile de devam edebilirsin.";
+  screen.classList.remove("hidden");$("pause").textContent="▶";
+ }else if(phase==="paused"){
+  phase="playing";screen.classList.add("hidden");lastFrame=performance.now();$("pause").textContent="Ⅱ";
+ }
+}
+function flip(){
+ if(phase!=="playing")return;
+ player.lane=1-player.lane;sfx("flip");
+ burst(player.x,py,"#69f7ff",7,.45);
+}
+function spawn(){
+ const blocked=rowCount===0?1:(rowCount===1?0:(Math.random()<.56?1-(rows.length?rows[rows.length-1].blocked:0):Math.round(Math.random())));
+ const gem=(rowCount>1 && Math.random()<.63);
+ rows.push({id:nextId++,y:-66,blocked,gem,passed:false,collected:false,near:false});
+ rowCount++;
+}
+function tick(dt){
+ t+=dt;speed=270+Math.min(260,t*2.5+score*.018);
+ const spacing=clamp(H*.35,195,335);spawnIn-=dt;
+ while(spawnIn<=0){spawn();spawnIn+=spacing/speed;}
+ player.x+=(lanes[player.lane]-player.x)*Math.min(1,dt*15);
+ player.invuln=Math.max(0,player.invuln-dt);
+ flash=Math.max(0,flash-dt*2);shake*=Math.pow(.025,dt);
+ for(const s of stars){s.y+=(s.v+speed*.1)*dt;if(s.y>H){s.y=0;s.x=Math.random()*W;}}
+ for(let i=dust.length-1;i>=0;i--){const p=dust[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.98;p.vy*=.98;p.life-=dt;if(p.life<=0)dust.splice(i,1);}
+ for(const row of rows){
+  const old=row.y;row.y+=speed*dt;
+  const bx=lanes[row.blocked],gx=lanes[1-row.blocked];
+  if(!row.collected && row.gem && old<=py && row.y>=py-18){
+   row.collected=true;
+   if(Math.abs(player.x-gx)<42){
+    gems++;score+=25;burst(gx,py,"#ffd76a",19,.8);sfx("gem");
+    if(gems%5===0){player.shield=1;notify("◈ KALKAN KAZANDIN!","#97ffd5");sfx("shield");}
+    else notify("+25 KRİSTAL","#ffd76a");
+    updateHud();
+   }
+  }
+  if(!row.passed && old<=py+39 && row.y>=py-37 && player.invuln<=0 && Math.abs(player.x-bx)<38){
+   row.passed=true;
+   if(player.shield){
+    player.shield=0;player.invuln=.9;shake=10;burst(player.x,py,"#95ffb5",27,1);notify("KALKAN KURTARDI!","#9fffc3");sfx("shield");updateHud();
+   }else{end();return;}
+  }
+  if(!row.passed && row.y>py+46){
+   row.passed=true;streak++;score+=10+Math.min(streak,8)*2;
+   if(streak%7===0){score+=70;notify("⚡ +70 SÜPER SERİ","#ffda68");sfx("gem");}
+   if(streak%10===0){flash=.24;burst(player.x,py,"#69f7ff",18,.7);}
+   updateHud();
+  }
+ }
+ rows=rows.filter(r=>r.y<H+100);
+}
+function background(dt){
+ const theme=colors[Math.floor(score/550)%colors.length];
+ const grad=cx.createLinearGradient(0,0,0,H);grad.addColorStop(0,"#070d22");grad.addColorStop(.58,"#111735");grad.addColorStop(1,"#080b20");cx.fillStyle=grad;cx.fillRect(0,0,W,H);
+ const g=cx.createRadialGradient(W*.5,H*.53,10,W*.5,H*.53,Math.max(W,H)*.62);
+ g.addColorStop(0,"#2463ae1c");g.addColorStop(1,"#00000000");cx.fillStyle=g;cx.fillRect(0,0,W,H);
+ for(const s of stars){cx.globalAlpha=s.a;cx.fillStyle="#d8eaff";cx.fillRect(s.x,s.y,s.r,s.r*2);}
+ cx.globalAlpha=1;
+ const mid=W*.5,edge=W*.23;
+ cx.lineWidth=1;cx.strokeStyle="#5c87c417";
+ for(let i=0;i<11;i++){const y=((i*H/9+t*speed*.47)%(H+H/9))-H/9;cx.beginPath();cx.moveTo(mid-edge,y);cx.lineTo(mid+edge,y);cx.stroke();}
+ const rail=theme[0];
+ for(let l=0;l<2;l++){
+  const x=lanes[l],w=Math.max(54,Math.min(104,W*.19));
+  cx.fillStyle=l===0?"#102b4242":"#3a174142";rr(x-w/2,0,w,H,18);cx.fill();
+  cx.shadowBlur=14;cx.shadowColor=rail;cx.strokeStyle=l===0?"#52daff99":"#f168a099";cx.lineWidth=2;
+  cx.beginPath();cx.moveTo(x-w/2,0);cx.lineTo(x-w/2,H);cx.moveTo(x+w/2,0);cx.lineTo(x+w/2,H);cx.stroke();cx.shadowBlur=0;
+  cx.strokeStyle=l===0?"#48cbff40":"#fe6aaa40";cx.lineWidth=3;cx.setLineDash([16,30]);cx.lineDashOffset=t*speed*.33;
+  cx.beginPath();cx.moveTo(x,0);cx.lineTo(x,H);cx.stroke();cx.setLineDash([]);
+ }
+ cx.strokeStyle="#f8f9ff10";cx.lineWidth=1;cx.beginPath();cx.moveTo(W*.5,0);cx.lineTo(W*.5,H);cx.stroke();
+}
+function drawHazards(){
+ for(const row of rows){
+  const x=lanes[row.blocked],y=row.y,w=Math.max(64,Math.min(116,W*.25)),h=54;
+  cx.save();cx.shadowBlur=24;cx.shadowColor="#ff3d65b8";
+  cx.fillStyle="#ff3e6517";rr(x-w/2-8,y-h/2-8,w+16,h+16,14);cx.fill();
+  const gr=cx.createLinearGradient(x-w/2,y,x+w/2,y);gr.addColorStop(0,"#ad244d");gr.addColorStop(.5,"#fe638a");gr.addColorStop(1,"#952148");
+  cx.fillStyle=gr;rr(x-w/2,y-h/2,w,h,12);cx.fill();cx.shadowBlur=0;
+  cx.strokeStyle="#ffb0be";cx.lineWidth=1.5;rr(x-w/2+2,y-h/2+2,w-4,h-4,10);cx.stroke();
+  cx.save();cx.beginPath();rr(x-w/2+5,y-h/2+4,w-10,h-8,7);cx.clip();cx.lineWidth=6;cx.strokeStyle="#4f102d88";
+  for(let i=-w;i<w*2;i+=24){cx.beginPath();cx.moveTo(x-w+i,y-h/2);cx.lineTo(x-w+i+40,y+h/2);cx.stroke();}cx.restore();
+  cx.fillStyle="#fff2f4";cx.font="bold 24px system-ui";cx.textAlign="center";cx.textBaseline="middle";cx.fillText("×",x,y+1);
+  cx.restore();
+  if(row.gem && !row.collected){
+   const gx=lanes[1-row.blocked],gy=y;
+   cx.save();cx.translate(gx,gy);cx.rotate(t*1.7);cx.shadowColor="#ffdf74";cx.shadowBlur=22;cx.fillStyle="#ffd76a";
+   cx.beginPath();cx.moveTo(0,-15);cx.lineTo(12,0);cx.lineTo(0,15);cx.lineTo(-12,0);cx.closePath();cx.fill();
+   cx.shadowBlur=0;cx.fillStyle="#fff7ca";cx.beginPath();cx.moveTo(0,-8);cx.lineTo(6,0);cx.lineTo(0,8);cx.lineTo(-6,0);cx.closePath();cx.fill();cx.restore();
+  }
+ }
+}
+function drawPlayer(){
+ const x=player.x,y=py;
+ cx.save();if(player.invuln && Math.floor(t*18)%2===0)cx.globalAlpha=.44;
+ const trail=lanes[player.lane]-player.x;
+ cx.shadowBlur=24;cx.shadowColor="#69f7ff";
+ const outer=cx.createRadialGradient(x,y,1,x,y,34);
+ outer.addColorStop(0,"#d7ffff");outer.addColorStop(.34,"#6df5ff");outer.addColorStop(.8,"#2367f6aa");outer.addColorStop(1,"#2565ff00");
+ cx.fillStyle=outer;cx.beginPath();cx.arc(x,y,34,0,Math.PI*2);cx.fill();
+ cx.fillStyle="#90faff";cx.strokeStyle="#e1ffff";cx.lineWidth=3;cx.beginPath();cx.arc(x,y,15,0,Math.PI*2);cx.fill();cx.stroke();
+ cx.fillStyle="#faffff";cx.beginPath();cx.arc(x-4,y-5,4,0,Math.PI*2);cx.fill();
+ if(Math.abs(trail)>6){cx.lineWidth=5;cx.strokeStyle="#69f7ff60";cx.beginPath();cx.moveTo(x-trail*.65,y+6);cx.lineTo(x,y);cx.stroke();}
+ if(player.shield || player.invuln){
+  cx.strokeStyle=player.shield?"#98ffc6":"#f1fdff";cx.lineWidth=3;cx.shadowColor="#a9ffce";cx.shadowBlur=15;
+  cx.beginPath();cx.arc(x,y,26+Math.sin(t*8)*2,0,Math.PI*2);cx.stroke();
+ }
+ cx.restore();
+}
+function drawDust(dt){
+ for(const p of dust){
+  cx.globalAlpha=clamp(p.life/p.max,0,1);cx.fillStyle=p.color;cx.shadowBlur=8;cx.shadowColor=p.color;cx.beginPath();cx.arc(p.x,p.y,p.r,0,Math.PI*2);cx.fill();
+ }
+ cx.globalAlpha=1;cx.shadowBlur=0;
+}
+function draw(){
+ cx.save();if(shake>.3)cx.translate(rnd(-shake,shake),rnd(-shake,shake));
+ background();drawHazards();drawDust();drawPlayer();
+ if(flash>0){cx.fillStyle="rgba(170,245,255,"+(flash*.1)+")";cx.fillRect(0,0,W,H);}
+ cx.restore();
+}
+function loop(now){
+ const dt=Math.min(.043,(now-lastFrame)/1000||0);lastFrame=now;
+ if(phase==="playing")tick(dt);
+ else if(phase==="menu"||phase==="over"){t+=dt*.5;for(const s of stars){s.y+=s.v*dt;if(s.y>H)s.y=0;}for(let i=dust.length-1;i>=0;i--){dust[i].life-=dt;if(dust[i].life<0)dust.splice(i,1);}}
+ draw();requestAnimationFrame(loop);
+}
+primary.addEventListener("click",e=>{e.stopPropagation();if(phase==="paused")pauseGame();else begin();});
+$("pause").addEventListener("click",e=>{e.stopPropagation();pauseGame()});
+$("sound").addEventListener("click",e=>{e.stopPropagation();saved.sound=!saved.sound;save();updateHud();if(saved.sound)sfx("flip")});
+canvas.addEventListener("pointerdown",e=>{e.preventDefault();flip()},{passive:false});
+addEventListener("keydown",e=>{
+ if(["Space","Enter","ArrowLeft","ArrowRight","KeyA","KeyD"].includes(e.code)){e.preventDefault();if(e.repeat)return;if(phase==="playing")flip();else if(phase==="menu"||phase==="over")begin();else if(phase==="paused")pauseGame();}
+ else if(["KeyP","Escape"].includes(e.code)){e.preventDefault();pauseGame();}
+ else if(e.code==="KeyM"){saved.sound=!saved.sound;save();updateHud();}
+});
+document.addEventListener("visibilitychange",()=>{if(document.hidden&&phase==="playing")pauseGame()});
+$("menuBest").textContent=saved.best;$("runs").textContent=saved.runs;updateHud();requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
