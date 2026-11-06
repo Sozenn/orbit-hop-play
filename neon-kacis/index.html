@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#070b20">
 <meta name="description" content="Neon Kaçış: Tek dokunuşla şerit değiştir, engellerden sıyrıl ve kendi rekorunu kır. Ücretsiz tarayıcı oyunu.">
-<title>Neon Kaçış — Tek Dokunuşluk Refleks Oyunu</title>
+<title>Neon Kaçış — 5 Modlu Refleks Oyunu</title>
 <style>
 :root{color-scheme:dark;--sky:#69f7ff;--pink:#ff477f;--gold:#ffd76a}
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#070b20;color:#f7f9ff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;overscroll-behavior:none}
@@ -41,6 +41,14 @@ canvas{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:
 #footer{position:fixed;left:50%;bottom:calc(7px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:10px;color:#547199b8;z-index:1;pointer-events:none;white-space:nowrap}
 @media(max-height:620px){.panel{padding:17px 20px}.orb{font-size:34px;margin:1px 0 4px}.logo{font-size:44px}#desc{margin:9px auto 12px}.hint{margin-top:9px}#stats{margin-bottom:12px}}
 @media(prefers-reduced-motion:reduce){.orb{animation:none}*{scroll-behavior:auto!important}}
+
+#mode{position:absolute;top:calc(138px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);font-size:11px;letter-spacing:2px;color:#75f5ff;font-weight:1000;white-space:nowrap;text-shadow:0 0 10px #4aceef88}
+#mission{position:absolute;left:50%;bottom:calc(54px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(290px,78vw);text-align:center;font-size:11px;font-weight:900;color:#d8e6ff}
+#missionLine{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:6px}
+#missionProgress{height:5px;background:#ffffff2a;border-radius:99px;overflow:hidden}
+#missionFill{height:100%;width:0%;background:linear-gradient(90deg,#53ecff,#ffd56e);border-radius:99px;transition:width .15s}
+#effects{position:absolute;top:calc(158px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);font-size:11px;color:#ffe599;font-weight:900;white-space:nowrap;text-shadow:0 0 13px #ffe59966}
+@media(max-height:630px){#mode{top:calc(105px + env(safe-area-inset-top))}#effects{top:calc(123px + env(safe-area-inset-top))}#mission{bottom:calc(44px + env(safe-area-inset-bottom))}#energy{bottom:calc(14px + env(safe-area-inset-bottom))}}
 </style>
 </head>
 <body>
@@ -48,7 +56,8 @@ canvas{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:
 <div id="hud">
   <div id="best">REKOR<br><strong id="bestNum">0</strong></div>
   <div id="scoreBox"><div id="score">0</div><div id="scoreLabel">PUAN</div></div>
-  <div id="combo"></div>
+  <div id="combo"></div><div id="mode"></div><div id="effects"></div>
+  <div id="mission"><div id="missionLine"><span id="missionName"></span><span id="missionCount"></span></div><div id="missionProgress"><div id="missionFill"></div></div></div>
   <div id="energy">✦ 0 KRİSTAL &nbsp;·&nbsp; ◈ KALKAN YOK</div>
   <button id="pause" aria-label="Duraklat">Ⅱ</button>
   <button id="sound" aria-label="Sesi aç veya kapat">♫</button>
@@ -59,7 +68,7 @@ canvas{position:fixed;inset:0;display:block;width:100%;height:100%;touch-action:
     <div class="kicker" id="kicker">TEK DOKUNUŞ · SONSUZ KOŞU</div>
     <div class="orb" id="orb">⚡</div>
     <div class="logo" id="title"><span>NEON</span><span>KAÇIŞ</span></div>
-    <p id="desc">Işık şeritlerinde hızla ilerle. <b style="color:#69f7ff">Dokunarak taraf değiştir</b>, kırmızı engellerden kaç ve kristalleri topla!</p>
+    <p id="desc">Dokunarak iki ışık şeridi arasında geç. <b style="color:#69f7ff">Dronlardan ve lazerlerden kaç</b>, özel güçleri yakala, görevleri tamamla!</p>
     <div id="stats"><div class="stat"><small>EN İYİ</small><b id="menuBest">0</b></div><div class="stat"><small>TOPLAM KOŞU</small><b id="runs">0</b></div></div>
     <button id="primary">▶ HEMEN OYNA</button>
     <p class="hint" id="hint">📱 Dokun &nbsp;·&nbsp; 💻 Tıkla / Boşluk tuşu</p>
@@ -81,6 +90,34 @@ let phase="menu",player={x:0,lane:0,shield:0,invuln:0};
 let rows=[],dust=[],stars=[],messages=[];
 let score=0,streak=0,gems=0,t=0,spawnIn=0,rowCount=0,speed=270,shake=0,flash=0;
 let lastFrame=performance.now(),nextId=0,toastTimeout=0,audio=null;
+let modeIndex=0,missionIndex=0,missionBase={dodged:0,gems:0,t:0},dodged=0,slowTime=0,doubleTime=0,hudClock=0;
+const modes=[
+ {name:"ISINMA TURU",color:"#73f4ff",hazard:.03,gems:.57,speed:1},
+ {name:"KRİSTAL YAĞMURU",color:"#ffd56a",hazard:.12,gems:.94,speed:1.02},
+ {name:"DRON SALDIRISI",color:"#ff749b",hazard:.72,gems:.58,speed:1.06},
+ {name:"LAZER KORİDORU",color:"#bc8aff",hazard:.32,gems:.50,speed:1.09},
+ {name:"TURBO ÇILGINLIĞI",color:"#a9ff93",hazard:.62,gems:.76,speed:1.24}
+];
+const quests=[
+ {title:"8 ENGELİ ATLAT",type:"dodged",goal:8},
+ {title:"5 KRİSTAL TOPLA",type:"gems",goal:5},
+ {title:"20 SANİYE DAYAN",type:"time",goal:20},
+ {title:"15 ENGELİ ATLAT",type:"dodged",goal:15},
+ {title:"9 KRİSTAL TOPLA",type:"gems",goal:9},
+ {title:"30 SANİYE DAYAN",type:"time",goal:30}
+];
+function quest(){return quests[missionIndex%quests.length]}
+function questProgress(){let q=quest();return Math.max(0,(q.type==="dodged"?dodged-missionBase.dodged:q.type==="gems"?gems-missionBase.gems:Math.floor(t-missionBase.t)))}
+function startNextQuest(){missionBase={dodged,gems,t};}
+function testQuest(){
+ if(phase!=="playing")return;
+ let q=quest();if(questProgress()<q.goal)return;
+ const reward=100+Math.min(missionIndex*30,180);
+ score+=reward;doubleTime=Math.max(doubleTime,5);
+ missionIndex++;startNextQuest();
+ notify("GÖREV TAMAM +"+reward,"#a9ff93");sfx("gem");burst(player.x,py,"#a9ff93",28,1);
+}
+
 const rnd=(a,b)=>a+Math.random()*(b-a),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const colors=[["#69f7ff","#ff537f"],["#95ff9b","#ff739f"],["#ffd67b","#ac84ff"],["#69e4ff","#ff884a"]];
 function resize(){
@@ -124,15 +161,23 @@ function notify(msg,color="#fff"){
 }
 function updateHud(){
  $("score").textContent=score;$("bestNum").textContent=Math.max(saved.best,score);
- $("combo").textContent=streak>=2?"🔥 "+Math.min(streak,9)+"x SERİ":""; 
+ $("combo").textContent=streak>=2?"🔥 "+Math.min(streak,9)+"x SERİ":"";
  $("energy").textContent="✦ "+gems+" KRİSTAL   ·   "+(player.shield?"◈ KALKAN HAZIR":"◇ "+(5-gems%5)+" KRİSTAL KALDI");
  $("sound").textContent=saved.sound?"♫":"♪̸";
+ $("mode").textContent="◆ "+modes[modeIndex].name+" ◆";
+ $("mode").style.color=modes[modeIndex].color;
+ $("effects").textContent=(doubleTime>0?"✖2 PUAN "+Math.ceil(doubleTime)+"sn  ":"")+(slowTime>0?"⏱ YAVAŞLAT "+Math.ceil(slowTime)+"sn":"");
+ let q=quest(),p=Math.min(q.goal,questProgress());
+ $("missionName").textContent="🎯 "+q.title;
+ $("missionCount").textContent=p+"/"+q.goal;
+ $("missionFill").style.width=(p/q.goal*100)+"%";
 }
 function begin(){
  phase="playing";screen.classList.add("hidden");hud.style.display="block";
  saved.runs++;save();player={x:lanes[0],lane:0,shield:0,invuln:0};
- score=0;streak=0;gems=0;t=0;speed=270;spawnIn=1.4;rowCount=0;shake=0;flash=0;rows=[];dust=[];messages=[];updateHud();$("pause").textContent="Ⅱ";lastFrame=performance.now();
- notify("ŞERİT DEĞİŞTİR!", "#69f7ff");sfx("start");
+ score=0;streak=0;gems=0;t=0;speed=270;spawnIn=1.35;rowCount=0;shake=0;flash=0;rows=[];dust=[];messages=[];
+ modeIndex=0;missionIndex=0;dodged=0;slowTime=0;doubleTime=0;hudClock=0;startNextQuest();updateHud();$("pause").textContent="Ⅱ";lastFrame=performance.now();
+ notify("GÖREV: "+quest().title, "#69f7ff");sfx("start");
 }
 function end(){
  phase="over";shake=20;flash=.65;sfx("hit");burst(player.x,py,"#ff537f",38,1.4);
@@ -164,49 +209,80 @@ function flip(){
  burst(player.x,py,"#69f7ff",7,.45);
 }
 function spawn(){
- const blocked=rowCount===0?1:(rowCount===1?0:(Math.random()<.56?1-(rows.length?rows[rows.length-1].blocked:0):Math.round(Math.random())));
- const gem=(rowCount>1 && Math.random()<.63);
- rows.push({id:nextId++,y:-66,blocked,gem,passed:false,collected:false,near:false});
+ const mode=modes[modeIndex];
+ const blocked=rowCount===0?1:(rowCount===1?0:(Math.random()<.58?1-(rows.length?rows[rows.length-1].blocked:0):Math.round(Math.random())));
+ const roll=Math.random();
+ let kind="block";
+ if(rowCount>3&&roll<mode.hazard){
+  kind=modeIndex===3?"laser":modeIndex===2?"drone":modeIndex===4?(roll<.3?"laser":"drone"):(roll<.075?"drone":"laser");
+ }
+ let pickup=null;
+ const itemRoll=Math.random();
+ if(rowCount>4 && itemRoll<.085){
+  pickup=itemRoll<.022?"slow":itemRoll<.052?"double":"shield";
+ }else if(rowCount>1&&Math.random()<mode.gems)pickup="gem";
+ rows.push({id:nextId++,y:-66,blocked,originalBlocked:blocked,kind,pickup,passed:false,collected:false,moved:false,moveAge:0});
  rowCount++;
 }
 function tick(dt){
- t+=dt;speed=270+Math.min(260,t*2.5+score*.018);
- const spacing=clamp(H*.35,195,335);spawnIn-=dt;
+ t+=dt;let nextMode=Math.floor(t/18)%modes.length;
+ if(nextMode!==modeIndex){
+  modeIndex=nextMode;notify("⚡ "+modes[modeIndex].name,modes[modeIndex].color);
+  burst(player.x,py,modes[modeIndex].color,25,.9);sfx("gem");
+ }
+ slowTime=Math.max(0,slowTime-dt);doubleTime=Math.max(0,doubleTime-dt);
+ const mode=modes[modeIndex];
+ speed=(270+Math.min(245,t*2.25+score*.015))*mode.speed*(slowTime>0?.67:1);
+ const spacing=clamp(H*(modeIndex===4?.28:.35),175,335);
+ spawnIn-=dt;
  while(spawnIn<=0){spawn();spawnIn+=spacing/speed;}
- player.x+=(lanes[player.lane]-player.x)*Math.min(1,dt*15);
+ player.x+=(lanes[player.lane]-player.x)*Math.min(1,dt*17);
  player.invuln=Math.max(0,player.invuln-dt);
  flash=Math.max(0,flash-dt*2);shake*=Math.pow(.025,dt);
  for(const s of stars){s.y+=(s.v+speed*.1)*dt;if(s.y>H){s.y=0;s.x=Math.random()*W;}}
  for(let i=dust.length-1;i>=0;i--){const p=dust[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.98;p.vy*=.98;p.life-=dt;if(p.life<=0)dust.splice(i,1);}
  for(const row of rows){
   const old=row.y;row.y+=speed*dt;
+  if(row.kind==="drone"&&!row.moved && row.y>py-255){row.moved=true;row.blocked=1-row.blocked;row.moveAge=0;burst(lanes[row.originalBlocked],row.y,"#ff82b5",9,.4);}
+  if(row.moved)row.moveAge=Math.min(1,row.moveAge+dt*5);
   const bx=lanes[row.blocked],gx=lanes[1-row.blocked];
-  if(!row.collected && row.gem && old<=py && row.y>=py-18){
+  if(!row.collected && row.pickup && old<=py && row.y>=py-18){
    row.collected=true;
-   if(Math.abs(player.x-gx)<42){
-    gems++;score+=25;burst(gx,py,"#ffd76a",19,.8);sfx("gem");
-    if(gems%5===0){player.shield=1;notify("◈ KALKAN KAZANDIN!","#97ffd5");sfx("shield");}
-    else notify("+25 KRİSTAL","#ffd76a");
-    updateHud();
+   if(Math.abs(player.x-gx)<41){
+    if(row.pickup==="gem"){
+     gems++;score+=doubleTime>0?50:25;burst(gx,py,"#ffd76a",19,.8);sfx("gem");
+     if(gems%5===0){player.shield=1;notify("◈ KALKAN KAZANDIN!","#97ffd5");sfx("shield");}
+    }else if(row.pickup==="slow"){
+     slowTime=7;score+=40;notify("⏱ ZAMAN YAVAŞLADI!","#87efff");burst(gx,py,"#87efff",24,1);sfx("shield");
+    }else if(row.pickup==="double"){
+     doubleTime=9;score+=40;notify("✖2 PUAN AKTİF!","#ffd76a");burst(gx,py,"#ffd76a",24,1);sfx("shield");
+    }else{
+     player.shield=1;score+=40;notify("◈ EKSTRA KALKAN!","#a9ffb5");burst(gx,py,"#a9ffb5",23,.8);sfx("shield");
+    }
+    testQuest();updateHud();
    }
   }
-  if(!row.passed && old<=py+39 && row.y>=py-37 && player.invuln<=0 && Math.abs(player.x-bx)<38){
+  if(!row.passed && old<=py+38 && row.y>=py-37 && player.invuln<=0 && Math.abs(player.x-bx)<39){
    row.passed=true;
    if(player.shield){
-    player.shield=0;player.invuln=.9;shake=10;burst(player.x,py,"#95ffb5",27,1);notify("KALKAN KURTARDI!","#9fffc3");sfx("shield");updateHud();
+    player.shield=0;player.invuln=.85;streak=0;shake=10;burst(player.x,py,"#95ffb5",27,1);
+    notify("KALKAN KURTARDI!","#9fffc3");sfx("shield");updateHud();
    }else{end();return;}
   }
   if(!row.passed && row.y>py+46){
-   row.passed=true;streak++;score+=10+Math.min(streak,8)*2;
-   if(streak%7===0){score+=70;notify("⚡ +70 SÜPER SERİ","#ffda68");sfx("gem");}
+   row.passed=true;dodged++;streak++;
+   let points=(10+Math.min(streak,8)*2)*(doubleTime>0||modeIndex===4?2:1);
+   score+=points;
+   if(streak%7===0){score+=doubleTime>0?140:70;notify("⚡ +70 SÜPER SERİ","#ffda68");sfx("gem");}
    if(streak%10===0){flash=.24;burst(player.x,py,"#69f7ff",18,.7);}
-   updateHud();
+   testQuest();updateHud();
   }
  }
  rows=rows.filter(r=>r.y<H+100);
+ hudClock+=dt;if(hudClock>.16){hudClock=0;testQuest();updateHud();}
 }
 function background(dt){
- const theme=colors[Math.floor(score/550)%colors.length];
+ const theme=colors[modeIndex%colors.length];
  const grad=cx.createLinearGradient(0,0,0,H);grad.addColorStop(0,"#070d22");grad.addColorStop(.58,"#111735");grad.addColorStop(1,"#080b20");cx.fillStyle=grad;cx.fillRect(0,0,W,H);
  const g=cx.createRadialGradient(W*.5,H*.53,10,W*.5,H*.53,Math.max(W,H)*.62);
  g.addColorStop(0,"#2463ae1c");g.addColorStop(1,"#00000000");cx.fillStyle=g;cx.fillRect(0,0,W,H);
@@ -215,7 +291,7 @@ function background(dt){
  const mid=W*.5,edge=W*.23;
  cx.lineWidth=1;cx.strokeStyle="#5c87c417";
  for(let i=0;i<11;i++){const y=((i*H/9+t*speed*.47)%(H+H/9))-H/9;cx.beginPath();cx.moveTo(mid-edge,y);cx.lineTo(mid+edge,y);cx.stroke();}
- const rail=theme[0];
+ const rail=modes[modeIndex].color;
  for(let l=0;l<2;l++){
   const x=lanes[l],w=Math.max(54,Math.min(104,W*.19));
   cx.fillStyle=l===0?"#102b4242":"#3a174142";rr(x-w/2,0,w,H,18);cx.fill();
@@ -228,21 +304,56 @@ function background(dt){
 }
 function drawHazards(){
  for(const row of rows){
-  const x=lanes[row.blocked],y=row.y,w=Math.max(64,Math.min(116,W*.25)),h=54;
-  cx.save();cx.shadowBlur=24;cx.shadowColor="#ff3d65b8";
-  cx.fillStyle="#ff3e6517";rr(x-w/2-8,y-h/2-8,w+16,h+16,14);cx.fill();
-  const gr=cx.createLinearGradient(x-w/2,y,x+w/2,y);gr.addColorStop(0,"#ad244d");gr.addColorStop(.5,"#fe638a");gr.addColorStop(1,"#952148");
-  cx.fillStyle=gr;rr(x-w/2,y-h/2,w,h,12);cx.fill();cx.shadowBlur=0;
-  cx.strokeStyle="#ffb0be";cx.lineWidth=1.5;rr(x-w/2+2,y-h/2+2,w-4,h-4,10);cx.stroke();
-  cx.save();cx.beginPath();rr(x-w/2+5,y-h/2+4,w-10,h-8,7);cx.clip();cx.lineWidth=6;cx.strokeStyle="#4f102d88";
-  for(let i=-w;i<w*2;i+=24){cx.beginPath();cx.moveTo(x-w+i,y-h/2);cx.lineTo(x-w+i+40,y+h/2);cx.stroke();}cx.restore();
-  cx.fillStyle="#fff2f4";cx.font="bold 24px system-ui";cx.textAlign="center";cx.textBaseline="middle";cx.fillText("×",x,y+1);
+  const y=row.y,w=Math.max(64,Math.min(116,W*.25)),h=row.kind==="laser"?28:54;
+  let x=lanes[row.blocked];
+  if(row.kind==="drone"&&row.moved){
+   const u=row.moveAge,p=u*u*(3-2*u);
+   x=lanes[row.originalBlocked]+(lanes[row.blocked]-lanes[row.originalBlocked])*p;
+  }
+  cx.save();
+  if(row.kind==="laser"){
+   cx.shadowBlur=27;cx.shadowColor="#b88cff";cx.fillStyle="#ce7bff2e";
+   rr(x-w/2-10,y-h/2-12,w+20,h+24,9);cx.fill();
+   let gr=cx.createLinearGradient(x-w/2,y,x+w/2,y);
+   gr.addColorStop(0,"#793aeb");gr.addColorStop(.5,"#f0adff");gr.addColorStop(1,"#793aeb");
+   cx.fillStyle=gr;rr(x-w/2,y-h/2,w,h,6);cx.fill();cx.fillStyle="#faf2ff";
+   cx.fillRect(x-w/2+4,y-2,w-8,4);
+  }else if(row.kind==="drone"){
+   cx.translate(x,y);cx.shadowBlur=25;cx.shadowColor="#ff628d";cx.rotate(Math.sin(t*9+row.id)*.09);
+   cx.fillStyle="#611735";cx.strokeStyle="#ff89a7";cx.lineWidth=3;
+   cx.beginPath();cx.moveTo(0,-29);cx.lineTo(32,0);cx.lineTo(0,29);cx.lineTo(-32,0);cx.closePath();cx.fill();cx.stroke();
+   cx.beginPath();cx.fillStyle="#ff6e9f";cx.arc(0,0,10+Math.sin(t*8)*2,0,Math.PI*2);cx.fill();
+   cx.fillStyle="#fff";cx.font="bold 15px system-ui";cx.textAlign="center";cx.textBaseline="middle";cx.fillText("↔",0,1);
+   cx.shadowBlur=0;
+   if(!row.moved){cx.fillStyle="#f6ceff";cx.font="bold 13px system-ui";cx.fillText("⇄",0,-43);}
+  }else{
+   cx.shadowBlur=24;cx.shadowColor="#ff3d65b8";
+   cx.fillStyle="#ff3e6517";rr(x-w/2-8,y-h/2-8,w+16,h+16,14);cx.fill();
+   const gr=cx.createLinearGradient(x-w/2,y,x+w/2,y);
+   gr.addColorStop(0,"#ad244d");gr.addColorStop(.5,"#fe638a");gr.addColorStop(1,"#952148");
+   cx.fillStyle=gr;rr(x-w/2,y-h/2,w,h,12);cx.fill();cx.shadowBlur=0;
+   cx.strokeStyle="#ffb0be";cx.lineWidth=1.5;rr(x-w/2+2,y-h/2+2,w-4,h-4,10);cx.stroke();
+   cx.save();cx.beginPath();rr(x-w/2+5,y-h/2+4,w-10,h-8,7);cx.clip();
+   cx.lineWidth=6;cx.strokeStyle="#4f102d88";
+   for(let i=-w;i<w*2;i+=24){cx.beginPath();cx.moveTo(x-w+i,y-h/2);cx.lineTo(x-w+i+40,y+h/2);cx.stroke();}cx.restore();
+   cx.fillStyle="#fff2f4";cx.font="bold 24px system-ui";cx.textAlign="center";cx.textBaseline="middle";cx.fillText("×",x,y+1);
+  }
   cx.restore();
-  if(row.gem && !row.collected){
+  if(row.pickup && !row.collected){
    const gx=lanes[1-row.blocked],gy=y;
-   cx.save();cx.translate(gx,gy);cx.rotate(t*1.7);cx.shadowColor="#ffdf74";cx.shadowBlur=22;cx.fillStyle="#ffd76a";
-   cx.beginPath();cx.moveTo(0,-15);cx.lineTo(12,0);cx.lineTo(0,15);cx.lineTo(-12,0);cx.closePath();cx.fill();
-   cx.shadowBlur=0;cx.fillStyle="#fff7ca";cx.beginPath();cx.moveTo(0,-8);cx.lineTo(6,0);cx.lineTo(0,8);cx.lineTo(-6,0);cx.closePath();cx.fill();cx.restore();
+   cx.save();cx.translate(gx,gy);
+   if(row.pickup==="gem"){
+    cx.rotate(t*1.7);cx.shadowColor="#ffdf74";cx.shadowBlur=22;cx.fillStyle="#ffd76a";
+    cx.beginPath();cx.moveTo(0,-15);cx.lineTo(12,0);cx.lineTo(0,15);cx.lineTo(-12,0);cx.closePath();cx.fill();
+    cx.shadowBlur=0;cx.fillStyle="#fff7ca";cx.beginPath();cx.moveTo(0,-8);cx.lineTo(6,0);cx.lineTo(0,8);cx.lineTo(-6,0);cx.closePath();cx.fill();
+   }else{
+    const color=row.pickup==="slow"?"#78eeff":row.pickup==="double"?"#ffd76a":"#9bffb9";
+    cx.shadowColor=color;cx.shadowBlur=20;cx.fillStyle="#0e2544";cx.strokeStyle=color;cx.lineWidth=3;
+    cx.beginPath();cx.arc(0,0,21+Math.sin(t*5)*2,0,Math.PI*2);cx.fill();cx.stroke();cx.shadowBlur=0;
+    cx.fillStyle=color;cx.font="900 21px system-ui";cx.textAlign="center";cx.textBaseline="middle";
+    cx.fillText(row.pickup==="slow"?"◷":row.pickup==="double"?"2×":"◇",0,1);
+   }
+   cx.restore();
   }
  }
 }
