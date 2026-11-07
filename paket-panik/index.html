@@ -55,7 +55,7 @@ button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .districtTab.selected{background:#ffd37e;border-color:#fd885e;box-shadow:0 3px 0 #eaa15d}
 .districtDesc{background:#fff2d2;border-radius:13px;padding:8px;margin:11px 0!important;font-size:12px!important}
 .districtDesc b{color:#b66a42}
-#bottom{background:#fff7e8f0;border:2px solid #e7b770;color:#553e5c;box-shadow:0 4px 0 #8c6b69ab}
+#bottom{background:#fff7e8f0;border:2px solid #e7b770;color:#553e5c;box-shadow:0 4px 0 #8c6b69ab;font-size:12px}
 #tip{box-shadow:0 4px 0 #8b7d65a6}
 </style>
 </head>
@@ -73,7 +73,7 @@ button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
       </div>
     </div>
     <div id="tip">Paketi geriye çek, bırak ve fırlat! 👆</div>
-    <div id="bottom">🎯 Hedef: İşaretli balkon &nbsp; • &nbsp; 🪙 <span id="wallet">0</span></div>
+    <div id="bottom">🎯 KIRMIZI HEDEF · 🪙 JETON: <span id="wallet">0</span></div>
   </div>
   <div id="floatToast"></div>
   <div id="overlay"></div>
@@ -166,6 +166,8 @@ for(let k=0;k<EXTRA_LEVELS.length;k++){
  levels.push(config);
 }
 for(let i=0;i<12;i++)levels[i].district=0;
+// Eski 12 bölümü bitiren oyuncular yeni 13. bölüme geçebilir.
+if(save.best && save.best[11] && save.unlocked===12){save.unlocked=13;saveData();}
 let index=0,phase="menu",mapDistrict=0,projectile=null,aim=null,dragging=false,pointerId=null;
 let ammo=0,used=0,delivered=0,coinsNow=[],blocksNow=[],balloonsNow=[],time=0,spawnReady=0;
 let particles=[],floaters=[],last=performance.now(),shake=0,flash=0,portalLock=0,goalPulse=0,winStars=0;
@@ -737,7 +739,7 @@ function renderOverlay(which){
  if(which==="menu"){
   phase="menu";
   h='<div class="sticker">YENİ MAHALLE MACERASI</div><h1>PAKET<br>PANİK!</h1><div class="hero">📦💨</div>'+
-    '<p>Bir sapan, bir kurye ve teslim edilmeyi bekleyen çılgın adresler. <b>Paketi geriye çekip bırak!</b> Her bölümde farklı bir sürpriz seni bekliyor.</p>'+
+    '<p>Paketi geriye çek, nişan al ve bırak! <b>🎯 Kırmızı TESLİM hedefine</b> isabet ettir. <b>🪙 Altın ₺ jetonları</b> topla. 4 mahallede 48 farklı adres seni bekliyor!</p>'+
     '<div class="smallstat"><div><b>'+save.unlocked+'/'+levels.length+'</b><span>AÇILAN BÖLÜM</span></div><div><b>'+totalStars()+' ⭐</b><span>YILDIZ</span></div><div><b>'+save.coins+' 🪙</b><span>JETON</span></div></div>'+
     '<button class="bigbtn" data-action="continue">🚚 HEMEN OYNA</button><button class="bigbtn secondary" data-action="levels">🗺️ BÖLÜMLERİ GÖR</button>'+
     '<button class="bigbtn mint" data-action="skin">'+skins[save.skin].emoji+' KOSTÜM: '+skins[save.skin].name+'</button>'+
