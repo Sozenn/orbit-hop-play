@@ -125,7 +125,7 @@ function hud(){
  const bh=$("bossHud");bh.style.display=boss?"block":"none";
  if(boss){$("bossText").textContent=boss.name;$("bossPercent").textContent=Math.round(Math.max(0,boss.hp/boss.maxHp)*100)+"%";$("bossInner").style.width=Math.max(0,boss.hp/boss.maxHp*100)+"%";}
 }
-function stageQuota(){return 10+Math.min(25,stage*2)}
+function stageQuota(){return spawnCount()}
 function spawnCount(){return 12+Math.min(24,stage*2)}
 function startStage(n,isEndless=false,preserve=false){
  stage=n;endless=isEndless;stageKind="normal";stageClock=0;time=0;
@@ -176,7 +176,7 @@ function killEnemy(e){
 function drop(x,y,type){pickups.push({x,y,type,t:0,vy:85+rand(0,40)});}
 function pickup(p){
  const i=pickups.indexOf(p);if(i<0)return;pickups.splice(i,1);
- if(p.type==="coin"){wallet+=5;stageEarned+=5;message("+5 JETON","#ffe49a");}
+ if(p.type==="coin"){wallet+=5;save.wallet=wallet;stageEarned+=5;message("+5 JETON","#ffe49a");}
  else if(p.type==="heal"){ship.hp=Math.min(ship.maxHp,ship.hp+1);message("❤ CAN YENİLENDİ","#93ffbb");}
  else if(p.type==="shield"){ship.shield=Math.min(3,ship.shield+1);message("🛡 KALKAN","#8cf0ff");}
  else if(p.type==="power"){ship.power=12;message("🔥 ÇİFT ATIŞ!","#ff9ce0");}
