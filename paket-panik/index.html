@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#191e44">
-<meta name="description" content="Paket Panik! Sapanla paket teslim et, köpeklerden kaç, rüzgarı yen, portalları kullan. 12 eğlenceli bölümlü ücretsiz web oyunu.">
+<meta name="description" content="Paket Panik! Sapanla paket teslim et, köpeklerden kaç, rüzgarı yen, portalları kullan. 48 eğlenceli bölümlü ücretsiz web oyunu.">
 <title>Paket Panik! — Bir Kuryenin Çılgın Macerası</title>
 <style>
 *{box-sizing:border-box}
@@ -48,6 +48,15 @@ button{font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .lv.active{background:#ffdfaa;border-color:#f78a64}
 @media(max-height:625px){.panel{padding:15px}.hero{height:65px;font-size:54px}.panel h1{font-size:36px}.panel p{margin:7px 0}.smallstat{margin:8px 0}.bigbtn{padding:11px;margin:7px 0}.levels{gap:5px}.lv{min-height:50px}}
 @media(prefers-reduced-motion:reduce){#floatToast{transition:none}}
+
+.districtTabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:15px}
+.districtTab{min-width:0;border-radius:12px;border:2px solid #eacb9e;background:#fff8e9;color:#4b5679;padding:7px 2px;font-size:20px;box-shadow:0 3px 0 #c8a97a}
+.districtTab span{display:block;font-weight:950;font-size:9px;white-space:normal;line-height:1.2}
+.districtTab.selected{background:#ffd37e;border-color:#fd885e;box-shadow:0 3px 0 #eaa15d}
+.districtDesc{background:#fff2d2;border-radius:13px;padding:8px;margin:11px 0!important;font-size:12px!important}
+.districtDesc b{color:#b66a42}
+#bottom{background:#fff7e8f0;border:2px solid #e7b770;color:#553e5c;box-shadow:0 4px 0 #8c6b69ab}
+#tip{box-shadow:0 4px 0 #8b7d65a6}
 </style>
 </head>
 <body>
@@ -100,7 +109,64 @@ const levels=[
  {name:"Fırtınalı Mesai",line:"Kargo yola çıktı, hava yola gelmedi.",emoji:"⛈️",sky:2,shots:8,targets:[{x:319,y:415},{x:326,y:315}],coins:[[177,371],[257,307],[301,252]],wind:95,windWave:140,fans:[{x:213,y:381,w:66,h:105,fx:115,fy:-60}]},
  {name:"MAHALLE FİNALİ",line:"Mahalle seni konuşuyor, reis!",emoji:"👑",sky:3,shots:10,targets:[{x:318,y:447},{x:327,y:347},{x:309,y:275}],coins:[[151,427],[223,361],[290,311],[343,225]],dog:{x:215,y:558,amp:32,speed:1.4},bumpers:[{x:242,y:484,r:21}],wind:35}
 ];
-let index=0,phase="menu",projectile=null,aim=null,dragging=false,pointerId=null;
+
+const DISTRICTS=[
+ {name:"Eski Mahalle",emoji:"🏘️",color:"#ff8660",subtitle:"Sapanı öğren, ilk müşterilerini tanı"},
+ {name:"Sahil Yolu",emoji:"🌊",color:"#28bfae",subtitle:"Rüzgâr, martılar ve hareketli teslimatlar"},
+ {name:"Çarşı Macerası",emoji:"🏪",color:"#f2a43e",subtitle:"İskeleler, köpekler ve yaramaz balonlar"},
+ {name:"Gece Mesaisi",emoji:"🌙",color:"#9677e5",subtitle:"En karmaşık ve eğlenceli adresler"}
+];
+// Her mahallede 12 farklı görev. Eski 12 bölüm ve kayıtlar korunur.
+const EXTRA_LEVELS=[
+ // Sahil Yolu: 13-24
+ {base:0,name:"Sahil Postacısı",emoji:"🌊",line:"Deniz kokan adrese express teslimat!",wind:-45,coins:[[167,388],[238,354],[292,335]],shots:5},
+ {base:1,name:"Mavi Panjurlar",emoji:"🪟",line:"Panjurlar açık; teslimat kaçmasın.",targets:[{x:319,y:350}],coins:[[187,434],[271,313]]},
+ {base:2,name:"Martı Rüzgârı",emoji:"🐦",line:"Rüzgâr esti mi kurye uçuşa geçer.",wind:-65,windWave:30,fans:[{x:184,y:352,w:58,h:110,fx:-70,fy:-70}]},
+ {base:5,name:"Kaçan Balkon",emoji:"↔️",line:"Balkonun yerinde durduğu görülmemiş.",targets:[{x:315,y:380,move:"horizontal",amp:24,speed:1.6}],wind:-20},
+ {base:9,name:"Balonlu Festival",emoji:"🎈",line:"Balonlar uçuyor, paketler de öyle!",balloons:[{x:237,y:418,r:24},{x:301,y:500,r:20},{x:201,y:521,r:17}]},
+ {base:0,name:"Sahil İkili",emoji:"📦",line:"Bir komşuya değil, iki komşuya teslimat.",shots:7,targets:[{x:314,y:425},{x:323,y:335}],wind:15,coins:[[172,423],[272,313]]},
+ {base:4,name:"Lastik Yolu",emoji:"🟣",line:"Zıplayan tamponlarla uçuş zamanı.",bumpers:[{x:244,y:435,r:24},{x:190,y:491,r:19}]},
+ {base:2,name:"Rüzgâr Değişti",emoji:"🌬️",line:"Rüzgârla inatlaşma, onunla oyna.",wind:45,windWave:65,fans:[{x:188,y:355,w:64,h:120,fx:75,fy:-70}]},
+ {base:6,name:"Liman Geçidi",emoji:"🌀",line:"Paket doğrudan portala, oradan adrese!",portals:[{x:207,y:398},{x:286,y:287}],wind:20},
+ {base:3,name:"Sahil Köpeği",emoji:"🐕",line:"Balkon açık ama köpek de açıkta.",dog:{x:214,y:559,amp:48,speed:2.3},shots:6},
+ {base:10,name:"Fırtına Uyarısı",emoji:"⛈️",line:"Sahilin en şiddetli rüzgârında çalış.",wind:75,windWave:85,shots:9},
+ {base:11,name:"LİMAN FİNALİ",emoji:"🚢",line:"Sahil mahallesinin efsane kuryesi oldun!",shots:10,wind:-15,bumpers:[{x:245,y:484,r:20}],dog:{x:215,y:558,amp:32,speed:1.7}},
+ // Çarşı Macerası: 25-36
+ {base:1,name:"Dükkân Önü",emoji:"🏪",line:"Sabah açılan dükkâna teslimat.",blocks:[{x:192,y:485,w:43,h:20,type:"crate"}],shots:5},
+ {base:8,name:"İskele Ustası",emoji:"🚧",line:"İskelenin arasından tam isabet.",blocks:[{x:208,y:454,w:88,h:19,type:"paddle",move:"vertical",amp:38,speed:1.7}],shots:6},
+ {base:3,name:"Bekçi Köpek",emoji:"🐶",line:"Çarşıyı bekleyen köpeğe dikkat!",dog:{x:210,y:570,amp:56,speed:2},shots:5},
+ {base:4,name:"Simitçi Tamponu",emoji:"🥯",line:"Sekerek giden paketler moda oldu.",bumpers:[{x:243,y:435,r:21}],shots:6},
+ {base:0,name:"Çarşı Trafiği",emoji:"🚦",line:"İki yere aynı anda kargo yetiştir.",targets:[{x:309,y:429},{x:322,y:325}],shots:7,coins:[[160,387],[275,347]]},
+ {base:9,name:"Çatıda Balonlar",emoji:"🎊",line:"Süslerden sıyrıl, paketi ulaştır.",balloons:[{x:236,y:429,r:23},{x:292,y:496,r:20}],wind:20},
+ {base:5,name:"Kıpır Kıpır Kepenk",emoji:"🪟",line:"Hedef bu kez aşağı yukarı hareketli.",targets:[{x:320,y:368,move:"vertical",amp:30,speed:1.5}],shots:6},
+ {base:6,name:"Arka Sokak Portalı",emoji:"🌀",line:"Çarşının kestirme yolu biraz garip.",portals:[{x:220,y:392},{x:294,y:301}],shots:6},
+ {base:7,name:"Üç Komşu",emoji:"📮",line:"Çarşının üç ayrı adresi var.",targets:[{x:306,y:435},{x:328,y:353},{x:314,y:289}],shots:10,coins:[[162,392],[260,319],[306,261]]},
+ {base:8,name:"Yıkım Çıkmazı",emoji:"🧱",line:"Kırılan kasalar bile engel olamaz.",blocks:[{x:200,y:472,w:39,h:23,type:"crate"},{x:260,y:505,w:35,h:20,type:"crate"}],shots:7},
+ {base:10,name:"Çarşı Fırtınası",emoji:"🌪️",line:"Tüm dükkânlar panik, kurye iş başında.",wind:85,windWave:100,shots:9},
+ {base:11,name:"ÇARŞI FİNALİ",emoji:"🏆",line:"Esnaf sana çay ısmarlıyor!",shots:11,wind:20,targets:[{x:314,y:444},{x:322,y:352},{x:309,y:280}],dog:{x:210,y:555,amp:35,speed:1.7}},
+ // Gece Mesaisi: 37-48
+ {base:0,name:"Gün Batımı",emoji:"🌇",line:"Son ışıkta yetişen teslimat.",wind:35,targets:[{x:325,y:413}]},
+ {base:5,name:"Işıklı Balkon",emoji:"💡",line:"Gece teslimatında hedef yerinde durmuyor.",targets:[{x:320,y:370,move:"horizontal",amp:27,speed:1.9}],shots:6},
+ {base:2,name:"Soğuk Esinti",emoji:"🍃",line:"Hava karardı, rüzgâr hızlandı.",wind:-55,windWave:50},
+ {base:4,name:"Neon Tampon",emoji:"💜",line:"Sekerek neon sokağa giriş.",bumpers:[{x:245,y:440,r:21},{x:192,y:480,r:16}],shots:7},
+ {base:3,name:"Gece Bekçisi",emoji:"🐕",line:"Köpek bile mesaisini bitirmiyor.",dog:{x:210,y:566,amp:52,speed:1.5},wind:15,shots:6},
+ {base:9,name:"Uçan Reklamlar",emoji:"🎈",line:"Gece reklam balonları çok yaramaz.",balloons:[{x:225,y:430,r:22},{x:295,y:492,r:18}],shots:7},
+ {base:6,name:"Ay Işığı Portalı",emoji:"🌙",line:"Gizli kapıyı bul, paketi ışınla.",portals:[{x:213,y:393},{x:285,y:293}],shots:7},
+ {base:7,name:"Çift Mesai",emoji:"📦",line:"Akşam teslimatında çift adres.",shots:8,targets:[{x:306,y:430},{x:321,y:316}],wind:30},
+ {base:8,name:"Son İskele",emoji:"🛠️",line:"İnşaat gece de devam ediyor!",shots:8,blocks:[{x:206,y:446,w:91,h:20,type:"paddle",move:"vertical",amp:39,speed:1.6}]},
+ {base:10,name:"Elektrikli Fırtına",emoji:"⚡",line:"İstanbul uyudu, rüzgâr uyanık.",wind:75,windWave:120,shots:9},
+ {base:11,name:"BÜYÜK TESLİMAT",emoji:"🎯",line:"Üç adreste büyük gece sınavı.",shots:11,wind:25,dog:{x:215,y:558,amp:26,speed:1.5}},
+ {base:11,name:"KURYE EFSANESİ",emoji:"👑",line:"Mahallenin değil, şehrin efsanesisin!",shots:12,wind:30,windWave:35,targets:[{x:315,y:450},{x:327,y:360},{x:315,y:278}],coins:[[160,420],[231,355],[286,303],[335,246]]}
+];
+const originalLevels=levels.slice();
+for(let k=0;k<EXTRA_LEVELS.length;k++){
+ const {base,...overrides}=EXTRA_LEVELS[k];
+ const config=JSON.parse(JSON.stringify(originalLevels[base]));
+ Object.assign(config,overrides,{district:Math.floor(k/12)+1,sky:(originalLevels[base].sky+k)%4});
+ levels.push(config);
+}
+for(let i=0;i<12;i++)levels[i].district=0;
+let index=0,phase="menu",mapDistrict=0,projectile=null,aim=null,dragging=false,pointerId=null;
 let ammo=0,used=0,delivered=0,coinsNow=[],blocksNow=[],balloonsNow=[],time=0,spawnReady=0;
 let particles=[],floaters=[],last=performance.now(),shake=0,flash=0,portalLock=0,goalPulse=0,winStars=0;
 let audio=null,toastTimer=0,pausedFrom="ready";
@@ -151,7 +217,7 @@ function updateHud(){
  el("tip").textContent=phase==="aim"?"BIRAK VE FIRLAT! 🚀":phase==="flight"?"Uçuyor! 🌈":delivered>0?"Sonraki paketi fırlat!":wind?"🌬️ Rüzgâra dikkat! Paketi geri çek.":"Paketi geriye çek, bırak ve fırlat! 👆";
 }
 function setupLevel(num){
- index=clamp(num,0,levels.length-1);let L=current();
+ index=clamp(num,0,levels.length-1);mapDistrict=Math.floor(index/12);let L=current();
  phase="ready";projectile=null;aim=null;dragging=false;pointerId=null;
  ammo=L.shots;used=0;delivered=0;time=0;spawnReady=0;portalLock=0;goalPulse=0;
  coinsNow=(L.coins||[]).map(c=>({x:c[0],y:c[1],hit:false}));
@@ -457,7 +523,7 @@ function renderOverlay(which){
     '<div class="smallstat"><div><b>'+save.unlocked+'/'+levels.length+'</b><span>AÇILAN BÖLÜM</span></div><div><b>'+totalStars()+' ⭐</b><span>YILDIZ</span></div><div><b>'+save.coins+' 🪙</b><span>JETON</span></div></div>'+
     '<button class="bigbtn" data-action="continue">🚚 HEMEN OYNA</button><button class="bigbtn secondary" data-action="levels">🗺️ BÖLÜMLERİ GÖR</button>'+
     '<button class="bigbtn mint" data-action="skin">'+skins[save.skin].emoji+' KOSTÜM: '+skins[save.skin].name+'</button>'+
-    '<p class="smallnote">12 bölüm · Kayıt otomatik · Telefonda ve bilgisayarda</p>';
+    '<p class="smallnote">48 bölüm · 4 mahalle · Kayıt otomatik</p>';
  }else if(which==="win"){
   const L=current();let stars="⭐".repeat(winStars)+"☆".repeat(3-winStars);
   h='<div class="sticker">TESLİMAT BAŞARILI!</div><div class="hero">'+L.emoji+'</div><h2>'+L.name+'</h2>'+
@@ -475,9 +541,19 @@ function renderOverlay(which){
     '<p>Çay bittiğinde paketi fırlatmaya devam edebilirsin.</p><button class="bigbtn" data-action="resume">▶ DEVAM ET</button>'+
     '<button class="bigbtn secondary" data-action="restart">↻ BÖLÜMÜ YENİDEN BAŞLAT</button><button class="bigbtn secondary" data-action="levels">🗺️ BÖLÜMLER</button>';
  }else if(which==="levels"){
-  phase="levels";h='<div class="sticker">MAHALLE HARİTASI</div><h2>Bölüm Seç</h2><p>Her adres ayrı bir olay! Tamamladığın bölümlerde yıldızlarını artır.</p><div class="levels">';
-  for(let i=0;i<levels.length;i++)h+='<button class="lv '+(i===index?"active":"")+'" data-level="'+i+'" '+(i>=save.unlocked?"disabled":"")+'>'+(i>=save.unlocked?"🔒":i+1)+'<small>'+(save.best[i]?"⭐".repeat(save.best[i]):"· · ·")+'</small></button>';
-  h+='</div><button class="bigbtn secondary" data-action="menu">← GERİ DÖN</button><p class="smallnote">'+save.unlocked+' bölüm açık · '+totalStars()+' yıldız toplandı</p>';
+  phase="levels";
+  const d=DISTRICTS[mapDistrict]||DISTRICTS[0];
+  h='<div class="sticker">KURYE HARİTASI · 48 BÖLÜM</div><h2>Mahalleni Seç</h2>'+
+    '<div class="districtTabs">';
+  for(let i=0;i<DISTRICTS.length;i++){
+    const district=DISTRICTS[i],first=i*12;
+    h+='<button class="districtTab '+(mapDistrict===i?'selected':'')+'" data-district="'+i+'" aria-label="'+district.name+'">'+district.emoji+'<span>'+district.name+'</span></button>';
+  }
+  h+='</div><p class="districtDesc"><b>'+d.emoji+' '+d.name+'</b><br>'+d.subtitle+'</p><div class="levels">';
+  for(let i=mapDistrict*12;i<Math.min((mapDistrict+1)*12,levels.length);i++){
+    h+='<button class="lv '+(i===index?'active':'')+'" data-level="'+i+'" '+(i>=save.unlocked?'disabled':'')+'>'+(i>=save.unlocked?'🔒':i+1)+'<small>'+(save.best[i]?'⭐'.repeat(save.best[i]):'· · ·')+'</small></button>';
+  }
+  h+='</div><button class="bigbtn secondary" data-action="menu">← GERİ DÖN</button><p class="smallnote">'+save.unlocked+' / '+levels.length+' bölüm açık · '+totalStars()+' yıldız toplandı</p>';
  }
  overlay.innerHTML='<div class="panel">'+h+'</div>';
 }
@@ -485,7 +561,7 @@ function doAction(action){
  if(action==="continue"){setupLevel(Math.min(Math.max(save.unlocked-1,0),levels.length-1));}
  else if(action==="restart"){setupLevel(index);}
  else if(action==="next"){setupLevel(Math.min(index+1,levels.length-1));}
- else if(action==="levels"){renderOverlay("levels");}
+ else if(action==="levels"){mapDistrict=Math.floor(index/12);renderOverlay("levels");}
  else if(action==="menu"){renderOverlay("menu");}
  else if(action==="resume"){phase=pausedFrom;overlay.classList.add("hidden");hud.style.display="block";last=performance.now();updateHud();}
  else if(action==="skin"){
@@ -499,7 +575,8 @@ function doAction(action){
 }
 overlay.addEventListener("click",e=>{
  const b=e.target.closest("button");if(!b)return;
- if(b.hasAttribute("data-level")){let n=Number(b.getAttribute("data-level"));if(n>=0&&n<save.unlocked)setupLevel(n);}
+ if(b.hasAttribute("data-district")){mapDistrict=Number(b.getAttribute("data-district"));renderOverlay("levels");}
+ else if(b.hasAttribute("data-level")){let n=Number(b.getAttribute("data-level"));if(n>=0&&n<save.unlocked)setupLevel(n);}
  else if(b.dataset.action)doAction(b.dataset.action);
 });
 el("retry").addEventListener("click",()=>setupLevel(index));
